@@ -53,3 +53,6 @@
 - No Direct Prompts: Do not simply list a command followed by "Run command?". You must provide context and expected outcomes in Korean first.
 
 - Interpretation: For any English system logs (Logcat) or error messages, interpret and summarize them in Korean to ensure the user fully understands the situation.
+
+## 8. Dependency Management Rules
+- Gradle Sync Verification: After modifying `libs.versions.toml` or `build.gradle.kts`, you MUST execute the `./gradlew help` command to verify that there are no errors in the build configuration.

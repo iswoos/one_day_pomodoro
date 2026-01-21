@@ -21,4 +21,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "one_day_pomodoro"
 include(":app")
+include(":domain")
+include(":data")
+include(":presentation")
  
