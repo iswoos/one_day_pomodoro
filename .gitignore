@@ -1,0 +1,42 @@
+# Built artifacts
+bin/
+gen/
+out/
+build/
+.gradle/
+
+# Android Studio / IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+/captures
+/assetWizardSettings.xml
+
+# Local configuration
+local.properties
+.externalNativeBuild/
+.cxx/
+
+# Gradle
+gradle-app.setting
+.gradletasknamecache
+
+# Log files
+*.log
+
+# Sensitive files
+*.keystore
+*.jks
+!debug.keystore
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Backup files
+*.bak
+*.swp
+*~
