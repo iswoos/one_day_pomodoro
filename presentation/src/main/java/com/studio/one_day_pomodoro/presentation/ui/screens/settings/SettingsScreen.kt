@@ -13,7 +13,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.studio.one_day_pomodoro.presentation.ui.components.ads.BannerAdView
 
 @Composable
 fun SettingsScreen(
@@ -23,7 +22,6 @@ fun SettingsScreen(
     val settings by viewModel.settings.collectAsState()
 
     Scaffold(
-        bottomBar = { BannerAdView() }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -32,9 +30,10 @@ fun SettingsScreen(
                 .padding(24.dp)
         ) {
             Text(
-                text = "개인 설정",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
+                text = "집중 설정",
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.primary
             )
             
             Spacer(modifier = Modifier.height(32.dp))

@@ -16,7 +16,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.studio.one_day_pomodoro.domain.model.PomodoroPurpose
-import com.studio.one_day_pomodoro.presentation.ui.components.ads.BannerAdView
 
 @Composable
 fun TimerScreen(
@@ -45,68 +44,68 @@ fun TimerScreen(
     }
 
     Scaffold(
-        bottomBar = { BannerAdView() }
     ) { paddingValues ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues),
-            contentAlignment = Alignment.Center
+                .padding(paddingValues)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = purpose.displayName,
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = Color.Gray
+            Text(
+                text = purpose.displayName,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+            )
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            val totalTimeSeconds by viewModel.totalFocusTimeSeconds.collectAsState()
+            val progress = if (totalTimeSeconds > 0) remainingTime.toFloat() / totalTimeSeconds else 0f
+            
+            Box(contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.size(280.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    strokeWidth = 12.dp,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                    strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
                 )
                 
-                Spacer(modifier = Modifier.height(32.dp))
-                
-                val totalTimeSeconds by viewModel.totalFocusTimeSeconds.collectAsState()
-                val progress = if (totalTimeSeconds > 0) remainingTime.toFloat() / totalTimeSeconds else 0f
-                
-                Box(contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(
-                        progress = { progress },
-                        modifier = Modifier.size(280.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        strokeWidth = 12.dp,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                        strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
-                    )
-                    
-                    Text(
-                        text = formatTime(remainingTime),
-                        style = MaterialTheme.typography.displayLarge,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 64.sp
+                Text(
+                    text = formatTime(remainingTime),
+                    style = MaterialTheme.typography.displayLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 64.sp
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(48.dp))
+            
+            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                // 일시정지 / 시작 버튼
+                FilledIconButton(
+                    onClick = { viewModel.toggleTimer() },
+                    modifier = Modifier.size(72.dp),
+                    shape = CircleShape
+                ) {
+                    Icon(
+                        if (isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp)
                     )
                 }
                 
-                Spacer(modifier = Modifier.height(48.dp))
-                
-                Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                    // 일시정지 / 시작 버튼
-                    FilledIconButton(
-                        onClick = { viewModel.toggleTimer() },
-                        modifier = Modifier.size(72.dp),
-                        shape = CircleShape
-                    ) {
-                        Icon(
-                            if (isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = null,
-                            modifier = Modifier.size(32.dp)
-                        )
-                    }
-                    
-                    // 중단 버튼
-                    OutlinedIconButton(
-                        onClick = onStopClick,
-                        modifier = Modifier.size(72.dp),
-                        shape = CircleShape
-                    ) {
-                        Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(32.dp))
-                    }
+                // 중단 버튼
+                OutlinedIconButton(
+                    onClick = onStopClick,
+                    modifier = Modifier.size(72.dp),
+                    shape = CircleShape
+                ) {
+                    Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(32.dp))
                 }
             }
         }

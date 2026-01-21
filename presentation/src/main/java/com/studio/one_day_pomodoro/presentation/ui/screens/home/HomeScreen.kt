@@ -19,7 +19,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.studio.one_day_pomodoro.domain.model.PomodoroPurpose
-import com.studio.one_day_pomodoro.presentation.ui.components.ads.BannerAdView
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun HomeScreen(
@@ -39,9 +41,6 @@ fun HomeScreen(
                     )
                 }
             }
-        },
-        bottomBar = {
-            BannerAdView()
         }
     ) { paddingValues ->
         Column(
@@ -52,9 +51,16 @@ fun HomeScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "오늘의 집중",
+                text = "하루 성과",
                 style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            
+            Text(
+                text = LocalDate.now().format(DateTimeFormatter.ofPattern("M월 d일 (E)", Locale.KOREAN)),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.outline
             )
             
             Spacer(modifier = Modifier.height(32.dp))
@@ -65,9 +71,9 @@ fun HomeScreen(
             Spacer(modifier = Modifier.height(24.dp))
             
             Text(
-                text = "목적별 요약",
+                text = "분야별 성과",
                 style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.align(Alignment.Start)
+                fontWeight = FontWeight.Bold
             )
             
             Spacer(modifier = Modifier.height(16.dp))

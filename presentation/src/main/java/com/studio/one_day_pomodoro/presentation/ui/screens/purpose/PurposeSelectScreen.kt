@@ -16,7 +16,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import com.studio.one_day_pomodoro.domain.model.PomodoroPurpose
-import com.studio.one_day_pomodoro.presentation.ui.components.ads.BannerAdView
 
 @Composable
 fun PurposeSelectScreen(
@@ -37,8 +36,7 @@ fun PurposeSelectScreen(
                     )
                 }
             }
-        },
-        bottomBar = { BannerAdView() }
+        }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -47,13 +45,12 @@ fun PurposeSelectScreen(
                 .padding(24.dp)
         ) {
             Text(
-                text = "어떤 일에\n집중하시겠어요?",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold,
-                lineHeight = 40.sp
+                text = "어떤 일에 집중하시겠어요?",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 32.dp)
             )
-            
-            Spacer(modifier = Modifier.height(32.dp))
             
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),

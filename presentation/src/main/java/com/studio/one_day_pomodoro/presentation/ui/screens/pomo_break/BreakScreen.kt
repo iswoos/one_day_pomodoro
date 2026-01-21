@@ -13,7 +13,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.studio.one_day_pomodoro.presentation.ui.components.ads.BannerAdView
 
 @Composable
 fun BreakScreen(
@@ -36,7 +35,6 @@ fun BreakScreen(
     }
 
     Scaffold(
-        bottomBar = { BannerAdView() }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -48,16 +46,18 @@ fun BreakScreen(
         ) {
             Text(
                 text = "훌륭해요! 이제 잠시 쉬어보세요.",
-                style = MaterialTheme.typography.titleMedium,
-                color = Color.Gray
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
             )
             
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             
             Text(
                 text = "이번 세션: ${focusMinutes}분 완료", 
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.onSurface
             )
             
             Spacer(modifier = Modifier.height(64.dp))

@@ -2,6 +2,8 @@ package com.studio.one_day_pomodoro.presentation.navigation
 
 import android.app.Activity
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -17,16 +19,26 @@ import com.studio.one_day_pomodoro.presentation.ui.screens.pomo_break.BreakScree
 import com.studio.one_day_pomodoro.presentation.ui.screens.summary.SummaryScreen
 import com.studio.one_day_pomodoro.presentation.ui.screens.settings.SettingsScreen
 
+import com.studio.one_day_pomodoro.presentation.util.findActivity
+
 @Composable
-fun PomoNavHost(navController: NavHostController) {
+fun PomoNavHost(
+    navController: NavHostController,
+    modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier
+) {
     val context = LocalContext.current
-    val activity = context as? Activity
+    val activity = remember(context) { context.findActivity() }
 
     NavHost(
         navController = navController,
-        startDestination = Screen.Home.route
+        startDestination = Screen.Home.route,
+        modifier = modifier
     ) {
         composable(Screen.Home.route) {
+            // 홈 화면 진입 시 미리 로드 시작
+            LaunchedEffect(Unit) {
+                activity?.let { InterstitialAdHelper.loadAd(it) }
+            }
             HomeScreen(
                 onStartClick = { navController.navigate(Screen.PurposeSelect.route) },
                 onSettingsClick = { navController.navigate(Screen.Settings.route) }
@@ -88,22 +100,30 @@ fun PomoNavHost(navController: NavHostController) {
                 navArgument("minutes") { type = NavType.IntType }
             )
         ) { backStackEntry ->
-            val purposeName = backStackEntry.arguments?.getString("purpose")
-            val purpose = PomodoroPurpose.valueOf(purposeName ?: PomodoroPurpose.OTHERS.name)
+            val purpose = PomodoroPurpose.valueOf(backStackEntry.arguments?.getString("purpose") ?: "OTHERS")
             val minutes = backStackEntry.arguments?.getInt("minutes") ?: 0
             
+            // 요약 화면 진입 시에도 보험용으로 로드 시도 (InterstitialAdHelper 내부에서 중복 체크함)
+            LaunchedEffect(Unit) {
+                activity?.let { InterstitialAdHelper.loadAd(it) }
+            }
+            
             SummaryScreen(
-                purposeDisplayName = purpose.displayName,
-                totalMinutes = minutes,
-                onHomeClick = {
-                    // 홈 이동 시 전면 광고 표시
+                purpose = purpose,
+                minutes = minutes,
+                onConfirmClick = {
+                    // 확인 버튼 클릭 시 이미 로드된 광고 표시 시도
                     activity?.let {
                         InterstitialAdHelper.showAd(it) {
                             navController.navigate(Screen.Home.route) {
                                 popUpTo(Screen.Home.route) { inclusive = true }
                             }
                         }
-                    } ?: navController.navigate(Screen.Home.route)
+                    } ?: run {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Home.route) { inclusive = true }
+                        }
+                    }
                 }
             )
         }
