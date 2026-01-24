@@ -1,10 +1,9 @@
 package com.studio.one_day_pomodoro.presentation.ui.screens.home
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -31,7 +30,6 @@ fun HomeScreen(
 ) {
     val summary by viewModel.dailySummary.collectAsState()
 
-
     Scaffold(
         topBar = {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
@@ -54,6 +52,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .widthIn(max = 600.dp)
+                    .verticalScroll(rememberScrollState())
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -88,11 +87,11 @@ fun HomeScreen(
             Spacer(modifier = Modifier.height(16.dp))
             
             // 목적별 리스트
-            LazyColumn(
-                modifier = Modifier.weight(1f),
+            Column(
+                modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(PomodoroPurpose.entries) { purpose ->
+                PomodoroPurpose.entries.forEach { purpose ->
                     val time = summary?.totalTimeByPurpose?.get(purpose) ?: 0
                     val count = summary?.sessionCountByPurpose?.get(purpose) ?: 0
                     PurposeSummaryItem(purpose, time, count)
