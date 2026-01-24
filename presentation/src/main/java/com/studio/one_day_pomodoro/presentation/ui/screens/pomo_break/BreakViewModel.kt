@@ -23,17 +23,28 @@ class BreakViewModel @Inject constructor(
 
     private val _totalBreakSeconds = MutableStateFlow(0L)
     val totalBreakSeconds: StateFlow<Long> = _totalBreakSeconds.asStateFlow()
+    
+    private val _remainingRepeatCount = MutableStateFlow(0)
+    val remainingRepeatCount: StateFlow<Int> = _remainingRepeatCount.asStateFlow()
+    
+    private val _settings = MutableStateFlow<com.studio.one_day_pomodoro.domain.model.PomodoroSettings?>(null)
+    val settings: StateFlow<com.studio.one_day_pomodoro.domain.model.PomodoroSettings?> = _settings.asStateFlow()
 
     private var timerJob: Job? = null
 
     fun startBreak() {
         viewModelScope.launch {
             val settings = getSettingsUseCase().first()
+            _settings.value = settings
             _totalBreakSeconds.value = settings.breakMinutes * 60L
             _remainingSeconds.value = _totalBreakSeconds.value
             
             runTimer()
         }
+    }
+    
+    fun setSessionInfo(remainingCount: Int) {
+        _remainingRepeatCount.value = remainingCount
     }
 
     private fun runTimer() {

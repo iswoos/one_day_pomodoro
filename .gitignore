@@ -40,3 +40,6 @@ Thumbs.db
 *.bak
 *.swp
 *~
+
+# Keystore directory
+secure_keystore/

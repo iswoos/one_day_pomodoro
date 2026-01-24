@@ -17,8 +17,9 @@ sealed interface Screen {
     }
     
     data object Break : Screen {
-        override val route = "break/{focusMinutes}"
-        fun createRoute(focusMinutes: Int) = "break/$focusMinutes"
+        override val route = "break/{focusMinutes}/{completedSessions}/{totalSessions}"
+        fun createRoute(focusMinutes: Int, completedSessions: Int, totalSessions: Int) = 
+            "break/$focusMinutes/$completedSessions/$totalSessions"
     }
     
     data object Summary : Screen { 

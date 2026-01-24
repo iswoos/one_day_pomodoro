@@ -63,10 +63,10 @@ fun PomoNavHost(
             
             TimerScreen(
                 purpose = purpose,
-                onBreakStart = { minutes ->
-                    // 휴식 시작 시 전면 광고 로드
+                onBreakStart = { minutes, completedSessions, totalSessions ->
+                    // 휴식 시작 시 전면 광고 로드 및 세션 정보 전달
                     activity?.let { InterstitialAdHelper.loadAd(it) }
-                    navController.navigate(Screen.Break.createRoute(minutes))
+                    navController.navigate(Screen.Break.createRoute(minutes, completedSessions, totalSessions))
                 },
                 onSummaryClick = { p, m ->
                     navController.navigate(Screen.Summary.createRoute(p, m))
@@ -77,18 +77,26 @@ fun PomoNavHost(
         
         composable(
             route = Screen.Break.route,
-            arguments = listOf(navArgument("focusMinutes") { type = NavType.IntType })
+            arguments = listOf(
+                navArgument("focusMinutes") { type = NavType.IntType },
+                navArgument("completedSessions") { type = NavType.IntType },
+                navArgument("totalSessions") { type = NavType.IntType }
+            )
         ) { backStackEntry ->
             val focusMinutes = backStackEntry.arguments?.getInt("focusMinutes") ?: 25
+            val completedSessions = backStackEntry.arguments?.getInt("completedSessions") ?: 0
+            val totalSessions = backStackEntry.arguments?.getInt("totalSessions") ?: 0
+            
             BreakScreen(
                 focusMinutes = focusMinutes,
+                completedSessions = completedSessions,
+                totalSessions = totalSessions,
                 onBreakEnd = {
-                    // 휴식 종료 시 전면 광고 표시 시도
-                    activity?.let {
-                        InterstitialAdHelper.showAd(it) {
-                            navController.popBackStack()
-                        }
-                    } ?: navController.popBackStack()
+                    // 휴식 종료 시 단순히 이전 화면(Timer)으로 복귀
+                    navController.popBackStack()
+                },
+                onStopClick = {
+                    navController.popBackStack(Screen.Home.route, false)
                 }
             )
         }

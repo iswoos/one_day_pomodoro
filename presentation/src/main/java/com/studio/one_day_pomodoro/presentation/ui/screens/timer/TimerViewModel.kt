@@ -1,12 +1,18 @@
 package com.studio.one_day_pomodoro.presentation.ui.screens.timer
 
+import android.content.Context
+import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.studio.one_day_pomodoro.domain.model.PomodoroPurpose
 import com.studio.one_day_pomodoro.domain.model.PomodoroSession
+import com.studio.one_day_pomodoro.domain.model.PomodoroSettings
+import com.studio.one_day_pomodoro.domain.repository.TimerStateRepository
 import com.studio.one_day_pomodoro.domain.usecase.GetSettingsUseCase
 import com.studio.one_day_pomodoro.domain.usecase.SavePomodoroSessionUseCase
+import com.studio.one_day_pomodoro.domain.usecase.UpdateSettingsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -20,103 +26,168 @@ import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import javax.inject.Inject
 
+
 @HiltViewModel
 class TimerViewModel @Inject constructor(
+    private val savePomodoroSessionUseCase: SavePomodoroSessionUseCase,
     private val getSettingsUseCase: GetSettingsUseCase,
-    private val savePomodoroSessionUseCase: SavePomodoroSessionUseCase
+    private val updateSettingsUseCase: UpdateSettingsUseCase,
+    private val timerRepository: TimerStateRepository,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
-    private val _remainingTimeSeconds = MutableStateFlow(0L)
-    val remainingTimeSeconds: StateFlow<Long> = _remainingTimeSeconds.asStateFlow()
+    // Repository 상태를 UI 상태로 변환
+    val remainingTimeSeconds: StateFlow<Long> = timerRepository.remainingSeconds
+    val isTimerRunning: StateFlow<Boolean> = timerRepository.isRunning
 
     private val _totalFocusTimeSeconds = MutableStateFlow(1L)
     val totalFocusTimeSeconds: StateFlow<Long> = _totalFocusTimeSeconds.asStateFlow()
 
-    private val _isTimerRunning = MutableStateFlow(false)
-    val isTimerRunning: StateFlow<Boolean> = _isTimerRunning.asStateFlow()
-
     private val _timerEvent = MutableSharedFlow<TimerEvent>()
     val timerEvent: SharedFlow<TimerEvent> = _timerEvent.asSharedFlow()
 
-    private var timerJob: Job? = null
+    private val _settings = MutableStateFlow<PomodoroSettings?>(null)
+    val settings: StateFlow<PomodoroSettings?> = _settings.asStateFlow()
+
+    private val _remainingRepeatCount = MutableStateFlow(0)
+    val remainingRepeatCount: StateFlow<Int> = _remainingRepeatCount.asStateFlow()
+
     private var currentPurpose: PomodoroPurpose? = null
-    private var initialFocusMinutes: Int = 25
-    private var totalRepeatCount: Int = 0
-    private var remainingRepeatCount: Int = 0
-    private var currentAccumulatedMinutes: Int = 0
+    private var startFocusMinutes: Int = 25
+    private var currentAccumulatedMinutes = 0
+
+    init {
+        loadSettings()
+        observeTimerCompletion()
+    }
+    
+    // 타이머가 0이 되었을 때(완료) 감지
+    private fun observeTimerCompletion() {
+        viewModelScope.launch {
+            timerRepository.remainingSeconds.collect { seconds ->
+                if (seconds == 0L && _settings.value != null && timerRepository.isRunning.value == false) {
+                     if (currentPurpose != null) {
+                         completeSession()
+                         currentPurpose = null 
+                     }
+                }
+            }
+        }
+    }
+
+    private fun loadSettings() {
+        viewModelScope.launch {
+            getSettingsUseCase().collect {
+                _settings.value = it
+                if (_remainingRepeatCount.value == 0) {
+                     _remainingRepeatCount.value = it.repeatCount
+                }
+            }
+        }
+    }
 
     fun startTimer(purpose: PomodoroPurpose) {
-        if (currentPurpose == purpose && _isTimerRunning.value) return
+        // 이미 실행 중이고 같은 목적이면 무시
+        if (currentPurpose == purpose && isTimerRunning.value) return
         
         val isFirstStart = currentPurpose == null
         currentPurpose = purpose
-        
+
         viewModelScope.launch {
             if (isFirstStart) {
-                val settings = getSettingsUseCase().first()
-                initialFocusMinutes = settings.focusMinutes
-                totalRepeatCount = settings.repeatCount
-                remainingRepeatCount = totalRepeatCount
-                currentAccumulatedMinutes = 0
-                _totalFocusTimeSeconds.value = initialFocusMinutes * 60L
-                _remainingTimeSeconds.value = initialFocusMinutes * 60L
-            }
-            
-            _isTimerRunning.value = true
-            runTimer()
-        }
-    }
-
-    private fun runTimer() {
-        timerJob?.cancel()
-        timerJob = viewModelScope.launch {
-            while (_remainingTimeSeconds.value > 0 && _isTimerRunning.value) {
-                delay(1000)
-                _remainingTimeSeconds.value -= 1
-            }
-            if (_remainingTimeSeconds.value == 0L) {
-                completeSession()
+                // 설정값을 확실히 가져옴
+                val settings = _settings.value ?: getSettingsUseCase().first()
+                startFocusMinutes = settings.focusMinutes
+                _totalFocusTimeSeconds.value = startFocusMinutes * 60L
+                
+                // 처음 시작할 때 Repository에 시간 설정 & 시작
+                timerRepository.start(startFocusMinutes * 60L)
+                startTimerService(startFocusMinutes)
+            } else {
+                // 재개
+                timerRepository.resume()
+                startTimerService(startFocusMinutes)
             }
         }
     }
 
-    private suspend fun completeSession() {
-        _isTimerRunning.value = false
-        val purpose = currentPurpose ?: PomodoroPurpose.OTHERS
+    fun setTimer(purpose: PomodoroPurpose) {
+        currentPurpose = purpose
+        val duration = _settings.value?.focusMinutes ?: 25
+        startFocusMinutes = duration
+        _totalFocusTimeSeconds.value = duration * 60L
         
-        savePomodoroSessionUseCase(
-            PomodoroSession(
-                purpose = purpose,
-                focusDurationInMinutes = initialFocusMinutes,
-                completedAt = LocalDateTime.now()
-            )
-        )
-        
-        currentAccumulatedMinutes += initialFocusMinutes
-        
-        if (remainingRepeatCount > 1) {
-            remainingRepeatCount -= 1
-            _remainingTimeSeconds.value = initialFocusMinutes * 60L
-            _timerEvent.emit(TimerEvent.GoToBreak(initialFocusMinutes))
-        } else {
-            _timerEvent.emit(TimerEvent.Finished(purpose, currentAccumulatedMinutes))
+        if (_remainingRepeatCount.value == 0) {
+            _remainingRepeatCount.value = _settings.value?.repeatCount ?: 4
         }
     }
 
     fun toggleTimer() {
-        _isTimerRunning.value = !_isTimerRunning.value
-        if (_isTimerRunning.value) {
-            runTimer()
+        val isRunning = timerRepository.isRunning.value
+        if (isRunning) {
+            timerRepository.pause()
+            stopTimerService() 
         } else {
-            timerJob?.cancel()
+            val currentSeconds = timerRepository.remainingSeconds.value
+            if (currentSeconds > 0) {
+                 timerRepository.resume()
+                 startTimerService(startFocusMinutes) 
+            } else {
+                timerRepository.start(startFocusMinutes * 60L)
+                startTimerService(startFocusMinutes)
+            }
         }
     }
 
     fun stopTimer() {
-        timerJob?.cancel()
-        _isTimerRunning.value = false
-        _remainingTimeSeconds.value = 0
-        currentPurpose = null
+        timerRepository.stop()
+        stopTimerService()
+        viewModelScope.launch {
+            _timerEvent.emit(TimerEvent.Finished(currentPurpose ?: PomodoroPurpose.OTHERS, currentAccumulatedMinutes))
+        }
+    }
+
+    private fun startTimerService(durationMinutes: Int) {
+        val intent = Intent().apply {
+            setClassName(context, "com.studio.one_day_pomodoro.service.TimerService")
+            putExtra("DURATION_MINUTES", durationMinutes)
+        }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            context.startForegroundService(intent)
+        } else {
+            context.startService(intent)
+        }
+    }
+
+    private fun stopTimerService() {
+        val intent = Intent().apply {
+            setClassName(context, "com.studio.one_day_pomodoro.service.TimerService")
+        }
+        context.stopService(intent)
+    }
+
+    private fun completeSession() {
+        stopTimerService()
+        val purpose = currentPurpose ?: PomodoroPurpose.OTHERS
+        
+        viewModelScope.launch {
+            savePomodoroSessionUseCase(
+                PomodoroSession(
+                    purpose = purpose,
+                    focusDurationInMinutes = startFocusMinutes,
+                    completedAt = LocalDateTime.now()
+                )
+            )
+            
+            currentAccumulatedMinutes += startFocusMinutes
+            
+            if (_remainingRepeatCount.value > 1) {
+                _remainingRepeatCount.value -= 1
+                _timerEvent.emit(TimerEvent.GoToBreak(startFocusMinutes))
+            } else {
+                _timerEvent.emit(TimerEvent.Finished(purpose, currentAccumulatedMinutes))
+            }
+        }
     }
 
     sealed interface TimerEvent {
@@ -124,3 +195,4 @@ class TimerViewModel @Inject constructor(
         data class Finished(val purpose: PomodoroPurpose, val minutes: Int) : TimerEvent
     }
 }
+

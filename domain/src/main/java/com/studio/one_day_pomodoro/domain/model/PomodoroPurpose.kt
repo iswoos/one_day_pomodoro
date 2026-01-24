@@ -5,10 +5,7 @@ package com.studio.one_day_pomodoro.domain.model
  */
 enum class PomodoroPurpose(val displayName: String) {
     STUDY("공부"),
-    DEV("개발"),
     READ("독서"),
     WORKOUT("운동"),
-    MEDITATION("명상"),
-    WORK("업무"),
     OTHERS("기타")
 }
