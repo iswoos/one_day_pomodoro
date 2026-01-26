@@ -46,7 +46,6 @@ class TimerStateRepositoryImpl @Inject constructor() : TimerStateRepository {
 
     override fun stop() {
         _isRunning.value = false
-        _remainingSeconds.value = 0
         timerJob?.cancel()
     }
 

@@ -44,6 +44,17 @@ class TimerService : Service() {
         return START_NOT_STICKY
     }
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        stopSelf()
+    }
+
+    override fun onDestroy() {
+        serviceScope.cancel()
+        notificationManager.cancel(notificationId) // 진행 중 알림 제거
+        super.onDestroy()
+    }
+
     private fun observeTimerState() {
         serviceScope.launch {
             timerRepository.remainingSeconds.collect { seconds ->
@@ -53,89 +64,34 @@ class TimerService : Service() {
         
         serviceScope.launch {
             timerRepository.isRunning.collect { isRunning ->
-                if (!isRunning && timerRepository.remainingSeconds.value <= 0) {
-                    // 타이머가 완료되어 멈춘 경우 -> 잠시 후 서비스 종료 (알림은 남겨둘 수도 있음)
-                    // 여기서는 즉시 종료보다 사용자가 앱을 열게 유도하는 게 좋음
-                    // 일단은 타이머가 멈추면 서비스도 멈추게 (백그라운드 리소스 해제)
-                    stopForeground(STOP_FOREGROUND_DETACH)
-                    stopSelf()
+                if (!isRunning) {
+                     // 타이머 멈춤 -> 서비스 종료
+                     stopForeground(STOP_FOREGROUND_REMOVE)
+                     stopSelf()
                 }
             }
         }
-    }
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId, "뽀모 타이머", NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "타이머 실행 중 알림"
-                setShowBadge(false)
-            }
-            notificationManager.createNotificationChannel(channel)
-        }
-    }
-
-    private fun createNotification(seconds: Long): android.app.Notification {
-        val notificationIntent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-
-        val formattedTime = formatTime(seconds)
-        
-        return NotificationCompat.Builder(this, channelId)
-            .setContentTitle("집중 중입니다")
-            .setContentText(formattedTime)
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentIntent(pendingIntent)
-            .setOnlyAlertOnce(true) // 알림 갱신 시 소리/진동 방지
-            .setOngoing(true)
-            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-            .addAction(
-                NotificationCompat.Action(
-                    0, "앱 열기", pendingIntent
-                )
-            )
-            .build()
     }
 
     private fun updateNotification(seconds: Long) {
         if (seconds > 0) {
             notificationManager.notify(notificationId, createNotification(seconds))
         } else {
-             // 완료 시 알림 (헤드업 알림으로 변경하면 좋음)
+             // 완료 시 알림 (ID 2번 사용, 일반 알림)
              val completeNotification = NotificationCompat.Builder(this, channelId)
                 .setContentTitle("집중 완료!")
                 .setContentText("휴식을 취해보세요.")
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
                 .setContentIntent(PendingIntent.getActivity(
-                    this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
+                    this, 0, Intent(this, MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }, PendingIntent.FLAG_IMMUTABLE
                 ))
                 .build()
-            notificationManager.notify(notificationId, completeNotification)
+            
+            notificationManager.notify(2, completeNotification)
+            notificationManager.cancel(notificationId) // 진행 중 알림 제거
         }
     }
-
-    private fun formatTime(seconds: Long): String {
-        val m = seconds / 60
-        val s = seconds % 60
-        return "%02d:%02d".format(m, s)
-    }
-
-    private fun Intent.getIntOfExtra(name: String, defaultValue: Int): Int {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            getIntExtra(name, defaultValue)
-        } else {
-            getIntExtra(name, defaultValue)
-        }
-    }
-
-    override fun onDestroy() {
-        serviceScope.cancel()
-        super.onDestroy()
-    }
-}
