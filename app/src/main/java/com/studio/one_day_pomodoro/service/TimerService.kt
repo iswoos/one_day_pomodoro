@@ -3,7 +3,14 @@ package com.studio.one_day_pomodoro.service
 import android.app.*
 import android.content.Intent
 import android.os.Build
-import android.os.PowerManager // 추가
+import android.os.IBinder
+import android.os.PowerManager
+import androidx.core.app.NotificationCompat
+import com.studio.one_day_pomodoro.MainActivity
+import com.studio.one_day_pomodoro.R
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.*
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class TimerService : Service() {
@@ -20,29 +27,55 @@ class TimerService : Service() {
     private lateinit var wakeLock: PowerManager.WakeLock
     private var isLastSession = false
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        try {
+            val durationMinutes = intent?.getIntOfExtra("DURATION_MINUTES", 25) ?: 25
+            isLastSession = intent?.getBooleanExtra("IS_LAST_SESSION", false) ?: false
+            
+            // 새로운 타이머 시작 시 이전 완료 알림 제거
+            notificationManager.cancel(2)
+            
+            // 초기 알림 표시 및 포그라운드 시작
+            startForeground(notificationId, createNotification(durationMinutes * 60L))
+        } catch (e: Exception) {
+            e.printStackTrace()
+            stopSelf() // 실행 불가 시 종료
+        }
+        
+        return START_NOT_STICKY
+    }
     override fun onBind(p0: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
-        notificationManager = getSystemService(NotificationManager::class.java)
-        createNotificationChannel()
-        
-        // WakeLock 획득 (잠금 화면 대응)
-        val powerManager = getSystemService(PowerManager::class.java)
-        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "OneDayPomodoro:TimerLock")
-        wakeLock.acquire(4 * 60 * 60 * 1000L) // 최대 4시간 유지
-        
-        // 타이머 상태 관찰
-        observeTimerState()
+        try {
+            notificationManager = getSystemService(NotificationManager::class.java)
+            createNotificationChannel()
+            
+            // WakeLock 획득 (잠금 화면 대응)
+            val powerManager = getSystemService(PowerManager::class.java)
+            wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "OneDayPomodoro:TimerLock")
+            wakeLock.acquire(4 * 60 * 60 * 1000L) // 최대 4시간 유지
+            
+            // 타이머 상태 관찰
+            observeTimerState()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // 서비스 생성 실패 시 종료
+            stopSelf()
+        }
     }
-
 
     override fun onDestroy() {
         serviceScope.cancel()
-        notificationManager.cancel(notificationId) // 진행 중 알림 제거
-        
-        if (::wakeLock.isInitialized && wakeLock.isHeld) {
-            wakeLock.release()
+        try {
+            notificationManager.cancel(notificationId) // 진행 중 알림 제거
+            
+            if (::wakeLock.isInitialized && wakeLock.isHeld) {
+                wakeLock.release()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
         super.onDestroy()
     }
