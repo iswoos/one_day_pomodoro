@@ -174,7 +174,10 @@ fun TimerScreen(
                 
                 // 중단 버튼 (아이콘만)
                 IconButton(
-                    onClick = onStopClick,
+                    onClick = {
+                        viewModel.stopTimer(createEvent = false)
+                        onStopClick()
+                    },
                     modifier = Modifier.size(56.dp)
                 ) {
                     Icon(

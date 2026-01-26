@@ -129,28 +129,32 @@ class TimerViewModel @Inject constructor(
             stopTimerService() 
         } else {
             val currentSeconds = timerRepository.remainingSeconds.value
+            val isLast = _remainingRepeatCount.value <= 1
             if (currentSeconds > 0) {
                  timerRepository.resume()
-                 startTimerService(startFocusMinutes) 
+                 startTimerService(startFocusMinutes, isLast) 
             } else {
                 timerRepository.start(startFocusMinutes * 60L)
-                startTimerService(startFocusMinutes)
+                startTimerService(startFocusMinutes, isLast)
             }
         }
     }
 
-    fun stopTimer() {
+    fun stopTimer(createEvent: Boolean = true) {
         timerRepository.stop()
         stopTimerService()
-        viewModelScope.launch {
-            _timerEvent.emit(TimerEvent.Finished(currentPurpose ?: PomodoroPurpose.OTHERS, currentAccumulatedMinutes))
+        if (createEvent) {
+            viewModelScope.launch {
+                _timerEvent.emit(TimerEvent.Finished(currentPurpose ?: PomodoroPurpose.OTHERS, currentAccumulatedMinutes))
+            }
         }
     }
 
-    private fun startTimerService(durationMinutes: Int) {
+    private fun startTimerService(durationMinutes: Int, isLastSession: Boolean) {
         val intent = Intent().apply {
             setClassName(context, "com.studio.one_day_pomodoro.service.TimerService")
             putExtra("DURATION_MINUTES", durationMinutes)
+            putExtra("IS_LAST_SESSION", isLastSession)
         }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             context.startForegroundService(intent)

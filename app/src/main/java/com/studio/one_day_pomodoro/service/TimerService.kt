@@ -23,6 +23,7 @@ class TimerService : Service() {
     private val notificationId = 1
     private val channelId = "timer_channel"
     private lateinit var notificationManager: NotificationManager
+    private var isLastSession = false
 
     override fun onBind(p0: Intent?): IBinder? = null
 
@@ -37,6 +38,10 @@ class TimerService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val durationMinutes = intent?.getIntOfExtra("DURATION_MINUTES", 25) ?: 25
+        isLastSession = intent?.getBooleanExtra("IS_LAST_SESSION", false) ?: false
+        
+        // 새로운 타이머 시작 시 이전 완료 알림 제거
+        notificationManager.cancel(2)
         
         // 초기 알림 표시 및 포그라운드 시작
         startForeground(notificationId, createNotification(durationMinutes * 60L))
@@ -78,9 +83,11 @@ class TimerService : Service() {
             notificationManager.notify(notificationId, createNotification(seconds))
         } else {
              // 완료 시 알림 (ID 2번 사용, 일반 알림)
+             val contentText = if (isLastSession) "모든 세션이 완료되었습니다." else "휴식을 취해보세요."
+             
              val completeNotification = NotificationCompat.Builder(this, channelId)
                 .setContentTitle("집중 완료!")
-                .setContentText("휴식을 취해보세요.")
+                .setContentText(contentText)
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setAutoCancel(true)
@@ -95,3 +102,56 @@ class TimerService : Service() {
             notificationManager.cancel(notificationId) // 진행 중 알림 제거
         }
     }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId, "뽀모 타이머", NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "타이머 실행 중 알림"
+                setShowBadge(false)
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun createNotification(seconds: Long): android.app.Notification {
+        val notificationIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val formattedTime = formatTime(seconds)
+        
+        return NotificationCompat.Builder(this, channelId)
+            .setContentTitle("집중 중입니다")
+            .setContentText(formattedTime)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentIntent(pendingIntent)
+            .setOnlyAlertOnce(true) // 알림 갱신 시 소리/진동 방지
+            .setOngoing(true)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            .addAction(
+                NotificationCompat.Action(
+                    0, "앱 열기", pendingIntent
+                )
+            )
+            .build()
+    }
+
+    private fun formatTime(seconds: Long): String {
+        val m = seconds / 60
+        val s = seconds % 60
+        return "%02d:%02d".format(m, s)
+    }
+
+    private fun Intent.getIntOfExtra(name: String, defaultValue: Int): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getIntExtra(name, defaultValue)
+        } else {
+            getIntExtra(name, defaultValue)
+        }
+    }
+}
