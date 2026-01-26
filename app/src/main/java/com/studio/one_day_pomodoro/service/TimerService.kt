@@ -3,13 +3,7 @@ package com.studio.one_day_pomodoro.service
 import android.app.*
 import android.content.Intent
 import android.os.Build
-import android.os.IBinder
-import androidx.core.app.NotificationCompat
-import com.studio.one_day_pomodoro.MainActivity
-import com.studio.one_day_pomodoro.R
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.*
-import javax.inject.Inject
+import android.os.PowerManager // 추가
 
 @AndroidEntryPoint
 class TimerService : Service() {
@@ -23,6 +17,7 @@ class TimerService : Service() {
     private val notificationId = 1
     private val channelId = "timer_channel"
     private lateinit var notificationManager: NotificationManager
+    private lateinit var wakeLock: PowerManager.WakeLock
     private var isLastSession = false
 
     override fun onBind(p0: Intent?): IBinder? = null
@@ -32,31 +27,23 @@ class TimerService : Service() {
         notificationManager = getSystemService(NotificationManager::class.java)
         createNotificationChannel()
         
+        // WakeLock 획득 (잠금 화면 대응)
+        val powerManager = getSystemService(PowerManager::class.java)
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "OneDayPomodoro:TimerLock")
+        wakeLock.acquire(4 * 60 * 60 * 1000L) // 최대 4시간 유지
+        
         // 타이머 상태 관찰
         observeTimerState()
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val durationMinutes = intent?.getIntOfExtra("DURATION_MINUTES", 25) ?: 25
-        isLastSession = intent?.getBooleanExtra("IS_LAST_SESSION", false) ?: false
-        
-        // 새로운 타이머 시작 시 이전 완료 알림 제거
-        notificationManager.cancel(2)
-        
-        // 초기 알림 표시 및 포그라운드 시작
-        startForeground(notificationId, createNotification(durationMinutes * 60L))
-        
-        return START_NOT_STICKY
-    }
-
-    override fun onTaskRemoved(rootIntent: Intent?) {
-        super.onTaskRemoved(rootIntent)
-        stopSelf()
-    }
 
     override fun onDestroy() {
         serviceScope.cancel()
         notificationManager.cancel(notificationId) // 진행 중 알림 제거
+        
+        if (::wakeLock.isInitialized && wakeLock.isHeld) {
+            wakeLock.release()
+        }
         super.onDestroy()
     }
 

@@ -102,11 +102,13 @@ class TimerViewModel @Inject constructor(
                 
                 // 처음 시작할 때 Repository에 시간 설정 & 시작
                 timerRepository.start(startFocusMinutes * 60L)
-                startTimerService(startFocusMinutes)
+                val isLast = _remainingRepeatCount.value <= 1
+                startTimerService(startFocusMinutes, isLast)
             } else {
                 // 재개
                 timerRepository.resume()
-                startTimerService(startFocusMinutes)
+                val isLast = _remainingRepeatCount.value <= 1
+                startTimerService(startFocusMinutes, isLast)
             }
         }
     }
