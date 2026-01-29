@@ -3,45 +3,31 @@ package com.studio.one_day_pomodoro
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.navigation.compose.rememberNavController
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import com.studio.one_day_pomodoro.ui.theme.One_day_pomodoroTheme
+import com.studio.one_day_pomodoro.presentation.navigation.PomoNavHost
+import com.studio.one_day_pomodoro.presentation.ui.components.ads.BannerAdView
+import com.studio.one_day_pomodoro.presentation.ui.theme.PomoTheme
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         setContent {
-            One_day_pomodoroTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
+            PomoTheme {
+                val navController = rememberNavController()
+                Scaffold(
+                    bottomBar = { BannerAdView() }
+                ) { paddingValues ->
+                    PomoNavHost(
+                        navController = navController,
+                        modifier = Modifier.padding(paddingValues)
                     )
                 }
             }
         }
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    One_day_pomodoroTheme {
-        Greeting("Android")
     }
 }

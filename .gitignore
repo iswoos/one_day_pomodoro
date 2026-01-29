@@ -40,3 +40,11 @@ Thumbs.db
 *.bak
 *.swp
 *~
+
+
+# Keystore directory
+secure_keystore/
+
+# App Release
+*.aab
+/app/release/
