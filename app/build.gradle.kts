@@ -22,10 +22,20 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = rootProject.file("secure_keystore/release.jks")
-            storePassword = "Pomodoro2026!"
-            keyAlias = "key0"
-            keyPassword = "Pomodoro2026!"
+            val keystoreFile = rootProject.file("secure_keystore/release.jks")
+            if (keystoreFile.exists()) {
+                storeFile = keystoreFile
+                
+                val properties = java.util.Properties()
+                val localPropertiesFile = rootProject.file("local.properties")
+                if (localPropertiesFile.exists()) {
+                    properties.load(java.io.FileInputStream(localPropertiesFile))
+                    
+                    storePassword = properties.getProperty("storePassword")
+                    keyAlias = properties.getProperty("keyAlias")
+                    keyPassword = properties.getProperty("keyPassword")
+                }
+            }
         }
     }
 
