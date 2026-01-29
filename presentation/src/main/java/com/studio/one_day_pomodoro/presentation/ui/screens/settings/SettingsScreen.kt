@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,14 +15,36 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onSaveClick: () -> Unit,
+    onBackClick: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val settings by viewModel.settings.collectAsState()
 
     Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
+                    Text(
+                        text = "집중 설정",
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                }
+            )
+        }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -29,14 +52,7 @@ fun SettingsScreen(
                 .padding(paddingValues)
                 .padding(24.dp)
         ) {
-            Text(
-                text = "집중 설정",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             
             settings?.let { s ->
                 SettingItem(
@@ -99,6 +115,9 @@ fun SettingItem(
     onDecrease: () -> Unit,
     onIncrease: () -> Unit
 ) {
+    // 내부 상태를 두어 입력 도중 값이 비거나 변경되는 것을 자연스럽게 처리
+    var textState by remember(value) { mutableStateOf(value.toString()) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -113,8 +132,11 @@ fun SettingItem(
             }
             
             OutlinedTextField(
-                value = value.toString(),
-                onValueChange = onValueChange,
+                value = textState,
+                onValueChange = { 
+                    textState = it
+                    onValueChange(it)
+                },
                 modifier = Modifier.width(70.dp),
                 textStyle = MaterialTheme.typography.bodyLarge.copy(
                     fontWeight = FontWeight.Bold,

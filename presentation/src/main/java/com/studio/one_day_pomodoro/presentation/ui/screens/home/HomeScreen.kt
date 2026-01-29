@@ -53,9 +53,11 @@ fun HomeScreen(
                     .fillMaxSize()
                     .widthIn(max = 600.dp)
                     .verticalScroll(rememberScrollState())
-                    .padding(24.dp),
+                    .padding(horizontal = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+
+
 
             Text(
                 text = "하루 성과",
@@ -71,19 +73,61 @@ fun HomeScreen(
                 color = MaterialTheme.colorScheme.outline
             )
             
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // 오늘 총 집중 시간 카드 (축소된 버전)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp, horizontal = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "총 집중 시간",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "${summary?.totalFocusMinutes ?: 0}분",
+                        style = MaterialTheme.typography.displayMedium, // 크기 약간 축소 (DisplayLarge -> Medium)
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // 3. 집중 시작 버튼을 아래에 위치 (Total Time 바로 아래)
+            Button(
+                onClick = onStartClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Text(text = "집중 시작", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+            
             Spacer(modifier = Modifier.height(32.dp))
             
-            // 오늘 총 집중 시간 카드
-            TotalFocusCard(totalMinutes = summary?.totalFocusMinutes ?: 0)
-            
-            Spacer(modifier = Modifier.height(24.dp))
+            // 4. 그 아래에 분야별 성과 항목 노출
             
             Text(
                 text = "분야별 성과",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
-            
+           
             Spacer(modifier = Modifier.height(16.dp))
             
             // 목적별 리스트
@@ -97,50 +141,11 @@ fun HomeScreen(
                     PurposeSummaryItem(purpose, time, count)
                 }
             }
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            Button(
-                onClick = onStartClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Text(text = "집중 시작", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            }
+            // Bottom padding for scroll
+            Spacer(modifier = Modifier.height(80.dp))
         }
     }
 }
-}
-
-@Composable
-fun TotalFocusCard(totalMinutes: Int) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-        shape = RoundedCornerShape(24.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "총 집중 시간",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "${totalMinutes}분",
-                style = MaterialTheme.typography.displayLarge,
-                fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-    }
 }
 
 @Composable

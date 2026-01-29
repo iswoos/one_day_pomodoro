@@ -142,7 +142,8 @@ fun PomoNavHost(
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Home.route) { inclusive = true }
                     }
-                }
+                },
+                onBackClick = { navController.popBackStack() }
             )
         }
     }

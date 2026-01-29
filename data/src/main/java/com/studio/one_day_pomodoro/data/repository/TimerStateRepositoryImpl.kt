@@ -23,12 +23,16 @@ class TimerStateRepositoryImpl @Inject constructor() : TimerStateRepository {
     private val _isRunning = MutableStateFlow(false)
     override val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
 
+    private val _timerMode = MutableStateFlow(com.studio.one_day_pomodoro.domain.model.TimerMode.NONE)
+    override val timerMode: StateFlow<com.studio.one_day_pomodoro.domain.model.TimerMode> = _timerMode.asStateFlow()
+
     private val repositoryScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var timerJob: Job? = null
 
-    override fun start(seconds: Long) {
+    override fun start(seconds: Long, mode: com.studio.one_day_pomodoro.domain.model.TimerMode) {
         _remainingSeconds.value = seconds
         _isRunning.value = true
+        _timerMode.value = mode
         startTimerJob()
     }
 
@@ -46,6 +50,7 @@ class TimerStateRepositoryImpl @Inject constructor() : TimerStateRepository {
 
     override fun stop() {
         _isRunning.value = false
+        _timerMode.value = com.studio.one_day_pomodoro.domain.model.TimerMode.NONE
         timerJob?.cancel()
     }
 
@@ -57,7 +62,7 @@ class TimerStateRepositoryImpl @Inject constructor() : TimerStateRepository {
                 _remainingSeconds.value -= 1
                 if (_remainingSeconds.value <= 0) {
                     _isRunning.value = false
-                    // 타이머 종료 로직은 ViewModel이나 Service에서 flow 관찰하여 처리
+                    // Timer finished, mode dictates notification content in Service
                 }
             }
         }

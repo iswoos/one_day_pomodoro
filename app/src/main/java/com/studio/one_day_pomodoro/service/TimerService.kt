@@ -26,6 +26,7 @@ class TimerService : Service() {
     private lateinit var notificationManager: NotificationManager
     private lateinit var wakeLock: PowerManager.WakeLock
     private var isLastSession = false
+    private var currentMode: com.studio.one_day_pomodoro.domain.model.TimerMode = com.studio.one_day_pomodoro.domain.model.TimerMode.NONE
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         try {
@@ -37,6 +38,10 @@ class TimerService : Service() {
             
             // 초기 알림 표시 및 포그라운드 시작
             startForeground(notificationId, createNotification(durationMinutes * 60L))
+            
+            // 진동 (시작 시)
+            vibrate(500)
+            
         } catch (e: Exception) {
             e.printStackTrace()
             stopSelf() // 실행 불가 시 종료
@@ -44,6 +49,7 @@ class TimerService : Service() {
         
         return START_NOT_STICKY
     }
+    
     override fun onBind(p0: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -79,11 +85,29 @@ class TimerService : Service() {
         }
         super.onDestroy()
     }
-
+    
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId, "뽀모 타이머", NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "타이머 실행 중 알림"
+                setShowBadge(false)
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
     private fun observeTimerState() {
         serviceScope.launch {
             timerRepository.remainingSeconds.collect { seconds ->
                 updateNotification(seconds)
+            }
+        }
+        
+        serviceScope.launch {
+            timerRepository.timerMode.collect { mode ->
+                currentMode = mode
+                // 모드 변경 시 알림 갱신 로직이 필요하다면 추가 (시간 흐름에 따라 updateNotification이 호출되므로 자연스럽게 반영됨)
             }
         }
         
@@ -103,10 +127,17 @@ class TimerService : Service() {
             notificationManager.notify(notificationId, createNotification(seconds))
         } else {
              // 완료 시 알림 (ID 2번 사용, 일반 알림)
-             val contentText = if (isLastSession) "모든 세션이 완료되었습니다." else "휴식을 취해보세요."
+             vibrate(1000) // 완료 진동
+             
+             val title = if (currentMode == com.studio.one_day_pomodoro.domain.model.TimerMode.FOCUS) "집중 완료!" else "휴식 완료!"
+             val contentText = if (currentMode == com.studio.one_day_pomodoro.domain.model.TimerMode.FOCUS) {
+                 if (isLastSession) "모든 세션이 완료되었습니다." else "휴식을 취해보세요."
+             } else {
+                 "다시 집중할 시간입니다."
+             }
              
              val completeNotification = NotificationCompat.Builder(this, channelId)
-                .setContentTitle("집중 완료!")
+                .setContentTitle(title)
                 .setContentText(contentText)
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -123,18 +154,6 @@ class TimerService : Service() {
         }
     }
 
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId, "뽀모 타이머", NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "타이머 실행 중 알림"
-                setShowBadge(false)
-            }
-            notificationManager.createNotificationChannel(channel)
-        }
-    }
-
     private fun createNotification(seconds: Long): android.app.Notification {
         val notificationIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -144,9 +163,10 @@ class TimerService : Service() {
         )
 
         val formattedTime = formatTime(seconds)
-        
+        val title = if (currentMode == com.studio.one_day_pomodoro.domain.model.TimerMode.BREAK) "구르는 재주 비상한 곰 재주 부리는 중..." else "집중 중입니다"
+
         return NotificationCompat.Builder(this, channelId)
-            .setContentTitle("집중 중입니다")
+            .setContentTitle(title)
             .setContentText(formattedTime)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pendingIntent)
@@ -161,6 +181,29 @@ class TimerService : Service() {
             .build()
     }
 
+    private fun checkVibrationPermission(): Boolean {
+        // Android 12+ requires permission for strict alarm/exact scheduling, but normal vibration usually okay if declared in Manifest. 
+        // Helper to keep code clean.
+        return true
+    }
+
+    private fun vibrate(durationMs: Long) {
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vibratorManager = getSystemService(android.content.Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+            vibratorManager.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(android.content.Context.VIBRATOR_SERVICE) as android.os.Vibrator
+        }
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(android.os.VibrationEffect.createOneShot(durationMs, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(durationMs)
+        }
+    }
+    
     private fun formatTime(seconds: Long): String {
         val m = seconds / 60
         val s = seconds % 60

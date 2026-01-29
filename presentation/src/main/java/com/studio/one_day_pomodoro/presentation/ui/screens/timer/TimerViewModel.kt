@@ -101,7 +101,7 @@ class TimerViewModel @Inject constructor(
                 _totalFocusTimeSeconds.value = startFocusMinutes * 60L
                 
                 // 처음 시작할 때 Repository에 시간 설정 & 시작
-                timerRepository.start(startFocusMinutes * 60L)
+                timerRepository.start(startFocusMinutes * 60L, com.studio.one_day_pomodoro.domain.model.TimerMode.FOCUS)
                 val isLast = _remainingRepeatCount.value <= 1
                 startTimerService(startFocusMinutes, isLast)
             } else {
@@ -136,7 +136,7 @@ class TimerViewModel @Inject constructor(
                  timerRepository.resume()
                  startTimerService(startFocusMinutes, isLast) 
             } else {
-                timerRepository.start(startFocusMinutes * 60L)
+                timerRepository.start(startFocusMinutes * 60L, com.studio.one_day_pomodoro.domain.model.TimerMode.FOCUS)
                 startTimerService(startFocusMinutes, isLast)
             }
         }
