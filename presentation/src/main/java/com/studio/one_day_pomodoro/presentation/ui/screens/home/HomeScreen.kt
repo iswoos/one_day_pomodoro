@@ -1,5 +1,10 @@
 package com.studio.one_day_pomodoro.presentation.ui.screens.home
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -7,15 +12,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.studio.one_day_pomodoro.domain.model.PomodoroPurpose
 import java.time.LocalDate
@@ -29,6 +34,37 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val summary by viewModel.dailySummary.collectAsState()
+    val context = LocalContext.current
+    
+    // 알림 권한 요청 런처
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            if (isGranted) {
+                onStartClick()
+            } else {
+                // 권한 거부 시에도 일단 타이머 시작은 시도 (알림 없이 동작할 수도 있으므로)
+                // 혹은 스낵바 등을 띄워줄 수 있음. 여기서는 바로 시작.
+                onStartClick()
+            }
+        }
+    )
+
+    fun checkAndStartTimer() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                onStartClick()
+            } else {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        } else {
+            onStartClick()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -106,7 +142,7 @@ fun HomeScreen(
             
             // 3. 집중 시작 버튼을 아래에 위치 (Total Time 바로 아래)
             Button(
-                onClick = onStartClick,
+                onClick = { checkAndStartTimer() },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),

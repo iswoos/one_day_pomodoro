@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -94,7 +95,10 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.weight(1f))
 
             Button(
-                onClick = onSaveClick,
+                onClick = {
+                    viewModel.saveSettings()
+                    onSaveClick() // 상위에서 navController.popBackStack() 처리 등을 가정
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
@@ -117,6 +121,14 @@ fun SettingItem(
 ) {
     // 내부 상태를 두어 입력 도중 값이 비거나 변경되는 것을 자연스럽게 처리
     var textState by remember(value) { mutableStateOf(value.toString()) }
+    var isFocused by remember { mutableStateOf(false) }
+
+    // 만약 외부에서 value가 바뀌었는데 포커스 중이 아니라면 textState 업데이트 (ex: 버튼으로 증감 시)
+    LaunchedEffect(value) {
+        if (!isFocused) {
+            textState = value.toString()
+        }
+    }
 
     Row(
         modifier = Modifier
@@ -135,9 +147,27 @@ fun SettingItem(
                 value = textState,
                 onValueChange = { 
                     textState = it
-                    onValueChange(it)
+                    // 입력 중에는 즉시 ViewModel에 반영 (유효성 검사는 ViewModel에서 처리됨)
+                    if (it.isNotEmpty()) {
+                        onValueChange(it)
+                    }
                 },
-                modifier = Modifier.width(70.dp),
+                modifier = Modifier
+                    .width(70.dp)
+                    .onFocusChanged { focusState ->
+                        if (focusState.isFocused && !isFocused) {
+                            // 포커스 얻었을 때 -> 입력 편의를 위해 전체 선택 혹은 비우기
+                            // 요청사항: "초기화된 공란에 입력되는 형태"
+                            textState = ""
+                        } else if (!focusState.isFocused && isFocused) {
+                            // 포커스 잃었을 때 -> 비어있으면 원복
+                            if (textState.isEmpty()) {
+                                textState = value.toString()
+                                onValueChange(value.toString())
+                            }
+                        }
+                        isFocused = focusState.isFocused
+                    },
                 textStyle = MaterialTheme.typography.bodyLarge.copy(
                     fontWeight = FontWeight.Bold,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
