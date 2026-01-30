@@ -157,6 +157,7 @@ class TimerViewModel @Inject constructor(
             setClassName(context, "com.studio.one_day_pomodoro.service.TimerService")
             putExtra("DURATION_MINUTES", durationMinutes)
             putExtra("IS_LAST_SESSION", isLastSession)
+            putExtra("TIMER_MODE", com.studio.one_day_pomodoro.domain.model.TimerMode.FOCUS.name)
         }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             context.startForegroundService(intent)

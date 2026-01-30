@@ -5,6 +5,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -37,6 +38,12 @@ fun TimerScreen(
     val remainingTime by viewModel.remainingTimeSeconds.collectAsState()
     val isRunning by viewModel.isTimerRunning.collectAsState()
     val context = LocalContext.current
+    
+    // Handle system back button
+    BackHandler {
+        viewModel.stopTimer(createEvent = false)
+        onStopClick()
+    }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()

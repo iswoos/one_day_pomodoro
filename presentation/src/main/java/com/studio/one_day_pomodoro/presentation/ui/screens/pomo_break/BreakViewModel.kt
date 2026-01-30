@@ -49,13 +49,26 @@ class BreakViewModel @Inject constructor(
         val intent = android.content.Intent().apply {
             setClassName(context, "com.studio.one_day_pomodoro.service.TimerService")
             putExtra("DURATION_MINUTES", durationMinutes)
-            putExtra("IS_LAST_SESSION", false) // 휴식은 항상 마지막 세션이 아님 (다음 집중이 있거나 끝났거나인데 보통 휴식 후 집중 or 끝) -> 휴식 중 알림은 "다시 집중" 멘트
+            putExtra("IS_LAST_SESSION", false)
+            putExtra("TIMER_MODE", com.studio.one_day_pomodoro.domain.model.TimerMode.BREAK.name)
         }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             context.startForegroundService(intent)
         } else {
             context.startService(intent)
         }
+    }
+    
+    fun stopBreak() {
+        timerRepository.stop()
+        stopTimerService()
+    }
+    
+    private fun stopTimerService() {
+        val intent = android.content.Intent().apply {
+            setClassName(context, "com.studio.one_day_pomodoro.service.TimerService")
+        }
+        context.stopService(intent)
     }
     
     fun setSessionInfo(remainingCount: Int) {

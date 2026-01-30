@@ -38,6 +38,14 @@ class TimerService : Service() {
             val durationMinutes = intent?.getIntOfExtra("DURATION_MINUTES", 25) ?: 25
             isLastSession = intent?.getBooleanExtra("IS_LAST_SESSION", false) ?: false
             
+            // Set mode immediately from intent to avoid race condition
+            val modeName = intent?.getStringExtra("TIMER_MODE") ?: TimerMode.NONE.name
+            currentMode = try {
+                TimerMode.valueOf(modeName)
+            } catch (e: Exception) {
+                TimerMode.NONE
+            }
+            
             // 새로운 타이머 시작 시 이전 완료 알림 제거
             notificationManager.cancel(2)
             

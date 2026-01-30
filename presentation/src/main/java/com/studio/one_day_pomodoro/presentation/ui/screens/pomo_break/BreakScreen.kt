@@ -8,6 +8,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -30,6 +31,12 @@ fun BreakScreen(
     val remainingSeconds by viewModel.remainingSeconds.collectAsState()
     val totalBreakSeconds by viewModel.totalBreakSeconds.collectAsState()
     val progress = if (totalBreakSeconds > 0) remainingSeconds.toFloat() / totalBreakSeconds else 0f
+    
+    // Handle system back button
+    BackHandler {
+        viewModel.stopBreak()
+        onStopClick()
+    }
 
     LaunchedEffect(Unit) {
         viewModel.startBreak()
@@ -121,7 +128,10 @@ fun BreakScreen(
             
             // 중단 버튼 (아이콘만)
             IconButton(
-                onClick = onStopClick,
+                onClick = {
+                    viewModel.stopBreak()
+                    onStopClick()
+                },
                 modifier = Modifier.size(56.dp)
             ) {
                 Icon(

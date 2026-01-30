@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.studio.one_day_pomodoro.domain.model.PomodoroPurpose
+import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -35,6 +36,14 @@ fun HomeScreen(
 ) {
     val summary by viewModel.dailySummary.collectAsState()
     val context = LocalContext.current
+    
+    // Smart cleanup: detect orphaned timers after process death
+    LaunchedEffect(Unit) {
+        delay(300) // Small delay to avoid race with normal navigation
+        if (viewModel.isTimerRunning()) {
+            viewModel.cleanupOrphanedTimer()
+        }
+    }
     
     // 알림 권한 요청 런처
     val notificationPermissionLauncher = rememberLauncherForActivityResult(

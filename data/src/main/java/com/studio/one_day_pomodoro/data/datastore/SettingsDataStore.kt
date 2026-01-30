@@ -30,7 +30,7 @@ class SettingsDataStore(private val context: Context) {
             PomodoroSettings(
                 focusMinutes = preferences[focusMinutesKey] ?: 25,
                 breakMinutes = preferences[breakMinutesKey] ?: 5,
-                repeatCount = preferences[repeatCountKey] ?: 0
+                repeatCount = preferences[repeatCountKey] ?: 1
             )
         }
 
