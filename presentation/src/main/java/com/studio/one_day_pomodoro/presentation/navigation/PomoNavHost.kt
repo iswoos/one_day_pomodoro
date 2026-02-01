@@ -24,14 +24,15 @@ import com.studio.one_day_pomodoro.presentation.util.findActivity
 @Composable
 fun PomoNavHost(
     navController: NavHostController,
-    modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier
+    modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier,
+    startDestination: String = Screen.Home.route
 ) {
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
 
     NavHost(
         navController = navController,
-        startDestination = Screen.Home.route,
+        startDestination = startDestination,
         modifier = modifier
     ) {
         composable(Screen.Home.route) {

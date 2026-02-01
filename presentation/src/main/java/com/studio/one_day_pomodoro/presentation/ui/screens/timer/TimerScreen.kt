@@ -37,6 +37,7 @@ fun TimerScreen(
 ) {
     val remainingTime by viewModel.remainingTimeSeconds.collectAsState()
     val isRunning by viewModel.isTimerRunning.collectAsState()
+    val timerMode by viewModel.timerMode.collectAsState()
     val context = LocalContext.current
     
     // Handle system back button
@@ -62,6 +63,17 @@ fun TimerScreen(
             }
         }
         viewModel.startTimer(purpose)
+    }
+
+    // State-based navigation check (Robustness for background transitions)
+    LaunchedEffect(timerMode) {
+        if (timerMode == com.studio.one_day_pomodoro.domain.model.TimerMode.BREAK) {
+            val settings = viewModel.settings.value
+            val totalSessions = settings?.repeatCount ?: 4
+            val remainingSessions = viewModel.remainingRepeatCount.value
+            val completedSessions = if (totalSessions > 0) totalSessions - remainingSessions else 0
+            onBreakStart(25, completedSessions, totalSessions) // Using 25 as default focus duration reference
+        }
     }
 
     LaunchedEffect(Unit) {

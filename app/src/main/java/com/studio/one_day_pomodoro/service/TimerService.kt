@@ -11,9 +11,13 @@ import android.os.VibrationEffect
 import androidx.core.app.NotificationCompat
 import com.studio.one_day_pomodoro.MainActivity
 import com.studio.one_day_pomodoro.R
+import com.studio.one_day_pomodoro.domain.model.PomodoroPurpose
+import com.studio.one_day_pomodoro.domain.model.PomodoroSession
 import com.studio.one_day_pomodoro.domain.model.TimerMode
+import com.studio.one_day_pomodoro.domain.usecase.SavePomodoroSessionUseCase
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
+import java.time.LocalDateTime
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -21,6 +25,9 @@ class TimerService : Service() {
 
     @Inject
     lateinit var timerRepository: com.studio.one_day_pomodoro.domain.repository.TimerStateRepository
+    
+    @Inject
+    lateinit var savePomodoroSessionUseCase: SavePomodoroSessionUseCase
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
@@ -30,15 +37,31 @@ class TimerService : Service() {
     private lateinit var notificationManager: NotificationManager
     private lateinit var wakeLock: PowerManager.WakeLock
     private lateinit var vibrator: Vibrator
+    
     private var isLastSession = false
     private var currentMode: TimerMode = TimerMode.NONE
+    private var currentPurpose: PomodoroPurpose = PomodoroPurpose.OTHERS
+    
+    private var breakDurationSeconds: Long = 5 * 60L
+    private var focusDurationMinutes: Int = 25
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         try {
             val durationMinutes = intent?.getIntOfExtra("DURATION_MINUTES", 25) ?: 25
+            focusDurationMinutes = durationMinutes
             isLastSession = intent?.getBooleanExtra("IS_LAST_SESSION", false) ?: false
             
-            // Set mode immediately from intent to avoid race condition
+            val breakMinutes = intent?.getIntOfExtra("BREAK_DURATION_MINUTES", 5) ?: 5
+            breakDurationSeconds = breakMinutes * 60L
+            
+            val purposeName = intent?.getStringExtra("PURPOSE") ?: "OTHERS"
+            currentPurpose = try {
+                PomodoroPurpose.valueOf(purposeName)
+            } catch (e: Exception) {
+                PomodoroPurpose.OTHERS
+            }
+            
+            // Set mode immediately from intent
             val modeName = intent?.getStringExtra("TIMER_MODE") ?: TimerMode.NONE.name
             currentMode = try {
                 TimerMode.valueOf(modeName)
@@ -52,11 +75,15 @@ class TimerService : Service() {
             // 초기 알림 표시 및 포그라운드 시작
             startForeground(notificationId, createNotification(durationMinutes * 60L))
             
-            // 타이머 시작 시 진동
+            // 타이머 시작 시 진동 (소리 없이 알림만 갱신하는 것이 아니라 명시적으로 진동)
+            // 단, Auto-Switching인 경우 여기서 진동이 울리면 좋음.
+            // 하지만 onStartCommand는 TimerViewModel에서 startService할 때만 불림.
+            // 내부 전환 시에는 onStartCommand가 안 불림.
             triggerVibration(VibrationPattern.START)
+            
         } catch (e: Exception) {
             e.printStackTrace()
-            stopSelf() // 실행 불가 시 종료
+            stopSelf() 
         }
         
         return START_STICKY
@@ -70,7 +97,6 @@ class TimerService : Service() {
             notificationManager = getSystemService(NotificationManager::class.java)
             createNotificationChannel()
             
-            // Vibrator 초기화
             vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val vibratorManager = getSystemService(VibratorManager::class.java)
                 vibratorManager.defaultVibrator
@@ -79,17 +105,14 @@ class TimerService : Service() {
                 getSystemService(Vibrator::class.java)
             }
             
-            // WakeLock 획득 (잠금 화면 대응)
             val powerManager = getSystemService(PowerManager::class.java)
             wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "OneDayPomodoro:TimerLock")
-            wakeLock.acquire(4 * 60 * 60 * 1000L) // 최대 4시간 유지
+            wakeLock.acquire(4 * 60 * 60 * 1000L) 
             
-            // 타이머 상태 관찰
             observeTimerState()
             observeTimerMode()
         } catch (e: Exception) {
             e.printStackTrace()
-            // 서비스 생성 실패 시 종료
             stopSelf()
         }
     }
@@ -97,8 +120,7 @@ class TimerService : Service() {
     override fun onDestroy() {
         serviceScope.cancel()
         try {
-            notificationManager.cancel(notificationId) // 진행 중 알림 제거
-            
+            notificationManager.cancel(notificationId) 
             if (::wakeLock.isInitialized && wakeLock.isHeld) {
                 wakeLock.release()
             }
@@ -119,6 +141,7 @@ class TimerService : Service() {
             notificationManager.createNotificationChannel(channel)
         }
     }
+    
     private fun observeTimerState() {
         serviceScope.launch {
             timerRepository.remainingSeconds.collect { seconds ->
@@ -129,9 +152,15 @@ class TimerService : Service() {
         serviceScope.launch {
             timerRepository.isRunning.collect { isRunning ->
                 if (!isRunning) {
-                     // 타이머 멈춤 -> 서비스 종료
-                     stopForeground(STOP_FOREGROUND_REMOVE)
-                     stopSelf()
+                     val seconds = timerRepository.remainingSeconds.value
+                     val shouldAutoTransition = seconds <= 0 && currentMode == TimerMode.FOCUS && !isLastSession
+                     
+                     if (shouldAutoTransition) {
+                         transitionToBreak()
+                     } else {
+                         stopForeground(STOP_FOREGROUND_REMOVE)
+                         stopSelf()
+                     }
                 }
             }
         }
@@ -141,7 +170,33 @@ class TimerService : Service() {
         serviceScope.launch {
             timerRepository.timerMode.collect { mode ->
                 currentMode = mode
+                // 모드 변경 시 알림 즉시 갱신 (제목 변경 등)
+                // remainingSeconds가 변경되지 않아도 모드가 바뀌면 갱신 필요
+                val seconds = timerRepository.remainingSeconds.value
+                if (seconds > 0) {
+                    notificationManager.notify(notificationId, createNotification(seconds))
+                }
             }
+        }
+    }
+    
+    private fun transitionToBreak() {
+        serviceScope.launch {
+            // 1. Save Session
+            savePomodoroSessionUseCase(
+                PomodoroSession(
+                    purpose = currentPurpose,
+                    focusDurationInMinutes = focusDurationMinutes,
+                    completedAt = LocalDateTime.now()
+                )
+            )
+            
+            // 2. Start Break Timer
+            // 진동: 완료 진동을 여기서 줘야 함 (updateNotification에서는 0초일 때 스킵했으므로)
+            triggerVibration(VibrationPattern.COMPLETE)
+            
+            timerRepository.start(breakDurationSeconds, TimerMode.BREAK)
+            // Repository.start sets isRunning=true, so the loop continues.
         }
     }
 
@@ -149,7 +204,16 @@ class TimerService : Service() {
         if (seconds > 0) {
             notificationManager.notify(notificationId, createNotification(seconds))
         } else {
-             // 완료 시 진동
+             // 0초 (완료 시점)
+             val shouldAutoTransition = currentMode == TimerMode.FOCUS && !isLastSession
+             
+             if (shouldAutoTransition) {
+                 // 전환 예정이므로 "완료/휴식하세요" 알림을 띄우지 않음.
+                 // 곧바로 Break 모드로 전환되어 초가 갱신될 것임.
+                 return
+             }
+             
+             // 완료 시 진동 (마지막 세션이거나 휴식 끝날 때)
              val vibrationPattern = if (isLastSession) {
                  VibrationPattern.FINAL_COMPLETE
              } else {
@@ -157,11 +221,12 @@ class TimerService : Service() {
              }
              triggerVibration(vibrationPattern)
              
-             // 완료 시 알림 (ID 2번 사용, 일반 알림)
-             val contentText = if (isLastSession) "모든 세션이 완료되었습니다." else "휴식을 취해보세요."
+             // 완료 알림
+             val contentText = if (isLastSession) "모든 세션이 완료되었습니다." else "휴식이 종료되었습니다."
+             val titleText = if (isLastSession) "집중 완료!" else "휴식 완료!"
              
              val completeNotification = NotificationCompat.Builder(this, channelId)
-                .setContentTitle("집중 완료!")
+                .setContentTitle(titleText)
                 .setContentText(contentText)
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -169,12 +234,13 @@ class TimerService : Service() {
                 .setContentIntent(PendingIntent.getActivity(
                     this, 0, Intent(this, MainActivity::class.java).apply {
                         flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                    }, PendingIntent.FLAG_IMMUTABLE
+                        putExtra("TIMER_FINISHED_MODE", currentMode.name)
+                    }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                 ))
                 .build()
             
             notificationManager.notify(2, completeNotification)
-            notificationManager.cancel(notificationId) // 진행 중 알림 제거
+            notificationManager.cancel(notificationId)
         }
     }
 
@@ -188,7 +254,6 @@ class TimerService : Service() {
 
         val formattedTime = formatTime(seconds)
         
-        // 모드에 따라 알림 제목 변경
         val title = when (currentMode) {
             TimerMode.FOCUS -> "집중 중입니다"
             TimerMode.BREAK -> "휴식 시간입니다"
@@ -200,7 +265,7 @@ class TimerService : Service() {
             .setContentText(formattedTime)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pendingIntent)
-            .setOnlyAlertOnce(true) // 알림 갱신 시 소리/진동 방지
+            .setOnlyAlertOnce(true) 
             .setOngoing(true)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .addAction(
@@ -226,8 +291,8 @@ class TimerService : Service() {
     
     private enum class VibrationPattern(val timings: LongArray) {
         START(longArrayOf(0, 200)),
-        COMPLETE(longArrayOf(0, 200)),
-        FINAL_COMPLETE(longArrayOf(0, 200, 100, 200))
+        COMPLETE(longArrayOf(0, 500)), // 조금 더 길게
+        FINAL_COMPLETE(longArrayOf(0, 200, 100, 200, 100, 400))
     }
     
     private fun formatTime(seconds: Long): String {
