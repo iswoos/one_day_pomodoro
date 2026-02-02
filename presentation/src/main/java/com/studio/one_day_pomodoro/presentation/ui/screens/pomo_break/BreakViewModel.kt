@@ -33,13 +33,27 @@ class BreakViewModel @Inject constructor(
     val settings: StateFlow<com.studio.one_day_pomodoro.domain.model.PomodoroSettings?> = _settings.asStateFlow()
 
     fun startBreak() {
+        // 이미 휴식 중이면 다시 시작하지 않음 (알림에서 들어왔을 때 리셋 방지)
+        if (timerRepository.isRunning.value && timerRepository.timerMode.value == com.studio.one_day_pomodoro.domain.model.TimerMode.BREAK) {
+            _totalBreakSeconds.value = timerRepository.breakDurationMinutes.value * 60L
+            return
+        }
+
         viewModelScope.launch {
             val settings = getSettingsUseCase().first()
             _settings.value = settings
             _totalBreakSeconds.value = settings.breakMinutes * 60L
             
             // TimerStateRepository를 통해 타이머 시작 (BREAK 모드)
-            timerRepository.start(_totalBreakSeconds.value, com.studio.one_day_pomodoro.domain.model.TimerMode.BREAK)
+            timerRepository.start(
+                seconds = _totalBreakSeconds.value,
+                mode = com.studio.one_day_pomodoro.domain.model.TimerMode.BREAK,
+                focusMin = settings.focusMinutes,
+                breakMin = settings.breakMinutes,
+                total = timerRepository.totalSessions.value,
+                completed = timerRepository.completedSessions.value,
+                purpose = timerRepository.currentPurpose.value
+            )
             
             startTimerService(settings.breakMinutes)
         }
@@ -48,9 +62,12 @@ class BreakViewModel @Inject constructor(
     private fun startTimerService(durationMinutes: Int) {
         val intent = android.content.Intent().apply {
             setClassName(context, "com.studio.one_day_pomodoro.service.TimerService")
-            putExtra("DURATION_MINUTES", durationMinutes)
-            putExtra("IS_LAST_SESSION", false)
+            putExtra("DURATION_MINUTES", timerRepository.focusDurationMinutes.value)
+            putExtra("BREAK_DURATION_MINUTES", durationMinutes)
+            putExtra("TOTAL_SESSIONS", timerRepository.totalSessions.value)
+            putExtra("COMPLETED_SESSIONS", timerRepository.completedSessions.value)
             putExtra("TIMER_MODE", com.studio.one_day_pomodoro.domain.model.TimerMode.BREAK.name)
+            putExtra("PURPOSE", timerRepository.currentPurpose.value.name)
         }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             context.startForegroundService(intent)

@@ -47,10 +47,15 @@ class MainActivity : ComponentActivity() {
                     val repoSeconds = timerRepository.remainingSeconds.first()
                     val repoMode = timerRepository.timerMode.first()
 
+                    val focusDuration = timerRepository.focusDurationMinutes.first()
+                    val completed = timerRepository.completedSessions.first()
+                    val total = timerRepository.totalSessions.first()
+                    val purpose = timerRepository.currentPurpose.first().name
+
                     startDestination = if (isRunning) {
                         when (mode) {
-                            TimerMode.BREAK -> "break_screen/25/0/0"
-                            else -> "timer_screen/OTHERS" // Default
+                            TimerMode.BREAK -> "break_screen/$focusDuration/$completed/$total"
+                            else -> "timer_screen/$purpose"
                         }
                     } else {
                         // Not running. Check if we just finished.
@@ -62,10 +67,10 @@ class MainActivity : ComponentActivity() {
                         
                         if (isFocusFinished) {
                              // Focus finished -> Go to Break
-                             "break_screen/25/0/0"
+                             "break_screen/$focusDuration/$completed/$total"
                         } else if (isBreakFinished) {
                              // Break finished -> Go to Timer
-                             "timer_screen/OTHERS"
+                             "timer_screen/$purpose"
                         } else {
                              Screen.Home.route
                         }

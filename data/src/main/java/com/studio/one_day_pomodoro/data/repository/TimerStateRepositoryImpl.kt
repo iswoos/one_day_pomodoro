@@ -27,16 +27,50 @@ class TimerStateRepositoryImpl @Inject constructor() : TimerStateRepository {
     private val _timerMode = MutableStateFlow(com.studio.one_day_pomodoro.domain.model.TimerMode.NONE)
     override val timerMode: StateFlow<com.studio.one_day_pomodoro.domain.model.TimerMode> = _timerMode.asStateFlow()
 
+    private val _focusDurationMinutes = MutableStateFlow(25)
+    override val focusDurationMinutes: StateFlow<Int> = _focusDurationMinutes.asStateFlow()
+
+    private val _breakDurationMinutes = MutableStateFlow(5)
+    override val breakDurationMinutes: StateFlow<Int> = _breakDurationMinutes.asStateFlow()
+
+    private val _totalSessions = MutableStateFlow(1)
+    override val totalSessions: StateFlow<Int> = _totalSessions.asStateFlow()
+
+    private val _completedSessions = MutableStateFlow(0)
+    override val completedSessions: StateFlow<Int> = _completedSessions.asStateFlow()
+
+    private val _currentPurpose = MutableStateFlow(com.studio.one_day_pomodoro.domain.model.PomodoroPurpose.OTHERS)
+    override val currentPurpose: StateFlow<com.studio.one_day_pomodoro.domain.model.PomodoroPurpose> = _currentPurpose.asStateFlow()
+
     private val repositoryScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var timerJob: Job? = null
     private var targetEndTimeMillis: Long = 0L
 
-    override fun start(seconds: Long, mode: com.studio.one_day_pomodoro.domain.model.TimerMode) {
+    override fun start(
+        seconds: Long, 
+        mode: com.studio.one_day_pomodoro.domain.model.TimerMode,
+        focusMin: Int,
+        breakMin: Int,
+        total: Int,
+        completed: Int,
+        purpose: com.studio.one_day_pomodoro.domain.model.PomodoroPurpose
+    ) {
         _remainingSeconds.value = seconds
         _isRunning.value = true
         _timerMode.value = mode
+        _focusDurationMinutes.value = focusMin
+        _breakDurationMinutes.value = breakMin
+        _totalSessions.value = total
+        _completedSessions.value = completed
+        _currentPurpose.value = purpose
+        
         targetEndTimeMillis = SystemClock.elapsedRealtime() + (seconds * 1000)
         startTimerJob()
+    }
+
+    override fun updateSessionInfo(completed: Int, total: Int) {
+        _completedSessions.value = completed
+        _totalSessions.value = total
     }
 
     override fun pause() {

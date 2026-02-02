@@ -126,19 +126,22 @@ fun BreakScreen(
             
             Spacer(modifier = Modifier.height(48.dp))
             
-            // 중단 버튼 (아이콘만)
-            IconButton(
+            // 집중 종료 버튼
+            TextButton(
                 onClick = {
                     viewModel.stopBreak()
                     onStopClick()
                 },
-                modifier = Modifier.size(56.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp)
             ) {
-                Icon(
-                    Icons.Default.Refresh,
-                    contentDescription = "중단",
-                    modifier = Modifier.size(32.dp),
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                Text(
+                    text = "집중 종료",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
             }
         }
