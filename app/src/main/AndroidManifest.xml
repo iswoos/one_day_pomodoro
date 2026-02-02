@@ -11,6 +11,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <application
         android:name=".PomoApplication"
@@ -44,6 +45,12 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="To ensure the Pomodoro timer continues running accurately in the background." />
         </service>
+
+        <receiver
+            android:name=".service.AlarmReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
         <!-- AdMob Application ID (테스트용 ID) -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"

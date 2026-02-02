@@ -72,7 +72,8 @@ fun TimerScreen(
             val totalSessions = settings?.repeatCount ?: 4
             val remainingSessions = viewModel.remainingRepeatCount.value
             val completedSessions = if (totalSessions > 0) totalSessions - remainingSessions else 0
-            onBreakStart(25, completedSessions, totalSessions) // Using 25 as default focus duration reference
+            val duration = settings?.focusMinutes ?: 25
+            onBreakStart(duration, completedSessions, totalSessions)
         }
     }
 

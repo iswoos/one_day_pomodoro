@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import android.os.SystemClock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -28,11 +29,13 @@ class TimerStateRepositoryImpl @Inject constructor() : TimerStateRepository {
 
     private val repositoryScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var timerJob: Job? = null
+    private var targetEndTimeMillis: Long = 0L
 
     override fun start(seconds: Long, mode: com.studio.one_day_pomodoro.domain.model.TimerMode) {
         _remainingSeconds.value = seconds
         _isRunning.value = true
         _timerMode.value = mode
+        targetEndTimeMillis = SystemClock.elapsedRealtime() + (seconds * 1000)
         startTimerJob()
     }
 
@@ -44,6 +47,7 @@ class TimerStateRepositoryImpl @Inject constructor() : TimerStateRepository {
     override fun resume() {
         if (_remainingSeconds.value > 0) {
             _isRunning.value = true
+            targetEndTimeMillis = SystemClock.elapsedRealtime() + (_remainingSeconds.value * 1000)
             startTimerJob()
         }
     }
@@ -57,13 +61,18 @@ class TimerStateRepositoryImpl @Inject constructor() : TimerStateRepository {
     private fun startTimerJob() {
         timerJob?.cancel()
         timerJob = repositoryScope.launch {
-            while (isActive && _remainingSeconds.value > 0 && _isRunning.value) {
-                delay(1000)
-                _remainingSeconds.value -= 1
-                if (_remainingSeconds.value <= 0) {
+            while (isActive && _isRunning.value) {
+                val now = SystemClock.elapsedRealtime()
+                val remaining = ((targetEndTimeMillis - now + 999) / 1000).coerceAtLeast(0)
+                
+                _remainingSeconds.value = remaining
+                
+                if (remaining <= 0) {
                     _isRunning.value = false
-                    // Timer finished, mode dictates notification content in Service
+                    break
                 }
+                
+                delay(500)
             }
         }
     }

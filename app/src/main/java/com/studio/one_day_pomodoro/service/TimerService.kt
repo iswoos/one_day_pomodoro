@@ -44,41 +44,45 @@ class TimerService : Service() {
     
     private var breakDurationSeconds: Long = 5 * 60L
     private var focusDurationMinutes: Int = 25
+    
+    private lateinit var alarmManager: AlarmManager
+    private var alarmPendingIntent: PendingIntent? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         try {
-            val durationMinutes = intent?.getIntOfExtra("DURATION_MINUTES", 25) ?: 25
-            focusDurationMinutes = durationMinutes
-            isLastSession = intent?.getBooleanExtra("IS_LAST_SESSION", false) ?: false
-            
-            val breakMinutes = intent?.getIntOfExtra("BREAK_DURATION_MINUTES", 5) ?: 5
-            breakDurationSeconds = breakMinutes * 60L
-            
-            val purposeName = intent?.getStringExtra("PURPOSE") ?: "OTHERS"
-            currentPurpose = try {
-                PomodoroPurpose.valueOf(purposeName)
-            } catch (e: Exception) {
-                PomodoroPurpose.OTHERS
-            }
-            
-            // Set mode immediately from intent
-            val modeName = intent?.getStringExtra("TIMER_MODE") ?: TimerMode.NONE.name
-            currentMode = try {
-                TimerMode.valueOf(modeName)
-            } catch (e: Exception) {
-                TimerMode.NONE
-            }
-            
-            // 새로운 타이머 시작 시 이전 완료 알림 제거
             notificationManager.cancel(2)
             
-            // 초기 알림 표시 및 포그라운드 시작
-            startForeground(notificationId, createNotification(durationMinutes * 60L))
+            val seconds = if (intent?.action == "ACTION_TIMER_EXPIRED") {
+                handleTimerExpired()
+                0L
+            } else {
+                val durationMinutes = intent?.getIntOfExtra("DURATION_MINUTES", 25) ?: 25
+                focusDurationMinutes = durationMinutes
+                isLastSession = intent?.getBooleanExtra("IS_LAST_SESSION", false) ?: false
+                
+                val breakMinutes = intent?.getIntOfExtra("BREAK_DURATION_MINUTES", 5) ?: 5
+                breakDurationSeconds = breakMinutes * 60L
+                
+                val purposeName = intent?.getStringExtra("PURPOSE") ?: "OTHERS"
+                currentPurpose = try {
+                    PomodoroPurpose.valueOf(purposeName)
+                } catch (e: Exception) {
+                    PomodoroPurpose.OTHERS
+                }
+                
+                val modeName = intent?.getStringExtra("TIMER_MODE") ?: TimerMode.NONE.name
+                currentMode = try {
+                    TimerMode.valueOf(modeName)
+                } catch (e: Exception) {
+                    TimerMode.NONE
+                }
+                
+                val totalSeconds = if (currentMode == TimerMode.FOCUS) durationMinutes * 60L else breakMinutes * 60L
+                scheduleAlarm(totalSeconds)
+                totalSeconds
+            }
             
-            // 타이머 시작 시 진동 (소리 없이 알림만 갱신하는 것이 아니라 명시적으로 진동)
-            // 단, Auto-Switching인 경우 여기서 진동이 울리면 좋음.
-            // 하지만 onStartCommand는 TimerViewModel에서 startService할 때만 불림.
-            // 내부 전환 시에는 onStartCommand가 안 불림.
+            startForeground(notificationId, createNotification(seconds))
             triggerVibration(VibrationPattern.START)
             
         } catch (e: Exception) {
@@ -95,6 +99,7 @@ class TimerService : Service() {
         super.onCreate()
         try {
             notificationManager = getSystemService(NotificationManager::class.java)
+            alarmManager = getSystemService(AlarmManager::class.java)
             createNotificationChannel()
             
             vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -153,14 +158,30 @@ class TimerService : Service() {
             timerRepository.isRunning.collect { isRunning ->
                 if (!isRunning) {
                      val seconds = timerRepository.remainingSeconds.value
-                     val shouldAutoTransition = seconds <= 0 && currentMode == TimerMode.FOCUS && !isLastSession
                      
-                     if (shouldAutoTransition) {
+                     // 1. Focus Finished -> Break (unless last)
+                     // 2. Break Finished -> Focus (unless last? wait, Break is never last basically, Focus is last)
+                     
+                     val isFocusFinished = seconds <= 0 && currentMode == TimerMode.FOCUS && !isLastSession
+                     val isBreakFinished = seconds <= 0 && currentMode == TimerMode.BREAK
+                     
+                      if (isFocusFinished) {
                          transitionToBreak()
+                     } else if (isBreakFinished) {
+                         // 휴식 끝 -> 다음 집중으로 진행 (루프)
+                         transitionToNextFocus()
                      } else {
+                         // 그 외 (마지막 세션 종료, 혹은 유저 중단)
+                         cancelAlarm()
                          stopForeground(STOP_FOREGROUND_REMOVE)
                          stopSelf()
                      }
+                } else {
+                    // 타이머 시작/재개됨
+                    val seconds = timerRepository.remainingSeconds.value
+                    if (seconds > 0) {
+                        scheduleAlarm(seconds)
+                    }
                 }
             }
         }
@@ -170,8 +191,6 @@ class TimerService : Service() {
         serviceScope.launch {
             timerRepository.timerMode.collect { mode ->
                 currentMode = mode
-                // 모드 변경 시 알림 즉시 갱신 (제목 변경 등)
-                // remainingSeconds가 변경되지 않아도 모드가 바뀌면 갱신 필요
                 val seconds = timerRepository.remainingSeconds.value
                 if (seconds > 0) {
                     notificationManager.notify(notificationId, createNotification(seconds))
@@ -182,7 +201,6 @@ class TimerService : Service() {
     
     private fun transitionToBreak() {
         serviceScope.launch {
-            // 1. Save Session
             savePomodoroSessionUseCase(
                 PomodoroSession(
                     purpose = currentPurpose,
@@ -190,13 +208,19 @@ class TimerService : Service() {
                     completedAt = LocalDateTime.now()
                 )
             )
-            
-            // 2. Start Break Timer
-            // 진동: 완료 진동을 여기서 줘야 함 (updateNotification에서는 0초일 때 스킵했으므로)
             triggerVibration(VibrationPattern.COMPLETE)
-            
             timerRepository.start(breakDurationSeconds, TimerMode.BREAK)
-            // Repository.start sets isRunning=true, so the loop continues.
+        }
+    }
+    
+    private fun transitionToNextFocus() {
+        serviceScope.launch {
+            // 휴식 끝. 다음 집중 시작.
+            triggerVibration(VibrationPattern.START)
+            timerRepository.start(focusDurationMinutes * 60L, TimerMode.FOCUS)
+            
+            // 주의: 여기서 isLastSession 값은 갱신되지 않음.
+            // ViewModel이 FOCUS 모드 변경을 감지하고, 다시 startService를 호출해서 isLastSession을 업데이트해줘야 함.
         }
     }
 
@@ -205,25 +229,21 @@ class TimerService : Service() {
             notificationManager.notify(notificationId, createNotification(seconds))
         } else {
              // 0초 (완료 시점)
-             val shouldAutoTransition = currentMode == TimerMode.FOCUS && !isLastSession
              
-             if (shouldAutoTransition) {
-                 // 전환 예정이므로 "완료/휴식하세요" 알림을 띄우지 않음.
-                 // 곧바로 Break 모드로 전환되어 초가 갱신될 것임.
+             // Auto-Switching 대상이면 알림 띄우지 않고 바로 전환
+             val isFocusFinished = currentMode == TimerMode.FOCUS && !isLastSession
+             val isBreakFinished = currentMode == TimerMode.BREAK
+             
+             if (isFocusFinished || isBreakFinished) {
                  return
              }
              
-             // 완료 시 진동 (마지막 세션이거나 휴식 끝날 때)
-             val vibrationPattern = if (isLastSession) {
-                 VibrationPattern.FINAL_COMPLETE
-             } else {
-                 VibrationPattern.COMPLETE
-             }
+             // 진짜 마지막 세션 종료 시
+             val vibrationPattern = VibrationPattern.FINAL_COMPLETE
              triggerVibration(vibrationPattern)
              
-             // 완료 알림
-             val contentText = if (isLastSession) "모든 세션이 완료되었습니다." else "휴식이 종료되었습니다."
-             val titleText = if (isLastSession) "집중 완료!" else "휴식 완료!"
+             val contentText = "모든 세션이 완료되었습니다."
+             val titleText = "집중 완료!"
              
              val completeNotification = NotificationCompat.Builder(this, channelId)
                 .setContentTitle(titleText)
@@ -291,7 +311,7 @@ class TimerService : Service() {
     
     private enum class VibrationPattern(val timings: LongArray) {
         START(longArrayOf(0, 200)),
-        COMPLETE(longArrayOf(0, 500)), // 조금 더 길게
+        COMPLETE(longArrayOf(0, 500)), 
         FINAL_COMPLETE(longArrayOf(0, 200, 100, 200, 100, 400))
     }
     
@@ -306,6 +326,55 @@ class TimerService : Service() {
             getIntExtra(name, defaultValue)
         } else {
             getIntExtra(name, defaultValue)
+        }
+    }
+
+    private fun handleTimerExpired() {
+        // 알람에 의해 호출됨. 만약 레포지토리가 아직 동작 중이라면 강제로 0으로 만들어서 완료 트리거
+        if (timerRepository.isRunning.value && timerRepository.remainingSeconds.value > 0) {
+            // repository.stop() 또는 직접 초 갱신? 
+            // RepositoryImpl을 수정해서 초를 바로 조정할 수 있는 기능이 없으므로
+            // 여기서는 repository.stop()은 하지 않고, transition logic을 직접 수행하거나
+            // repository에 finish() 기능 추가 필요.
+            // 일단은 transitionToBreak/NextFocus 로직이 observeTimerState에서 
+            // isRunning=false && seconds<=0 일 때 동작하도록 되어 있으므로
+            // repository.stop()을 하면 seconds가 0이 아닐 수 있음.
+            
+            // 따라서 repository.start(0, currentMode)를 호출하면 
+            // 즉시 isRunning=false && remaining=0 이 되어 observer가 동작함.
+            timerRepository.start(0, currentMode)
+        }
+    }
+
+    private fun scheduleAlarm(seconds: Long) {
+        cancelAlarm()
+        
+        val intent = Intent(this, AlarmReceiver::class.java)
+        alarmPendingIntent = PendingIntent.getBroadcast(
+            this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        val triggerAtMillis = android.os.SystemClock.elapsedRealtime() + (seconds * 1000)
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                triggerAtMillis,
+                alarmPendingIntent!!
+            )
+        } else {
+            alarmManager.setExact(
+                AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                triggerAtMillis,
+                alarmPendingIntent!!
+            )
+        }
+    }
+
+    private fun cancelAlarm() {
+        alarmPendingIntent?.let {
+            alarmManager.cancel(it)
+            alarmPendingIntent = null
         }
     }
 }

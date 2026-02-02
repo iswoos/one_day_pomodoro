@@ -65,15 +65,33 @@ class TimerViewModel @Inject constructor(
     
     // TimerService가 처리하는 상태 변경을 감지하여 UI/Logic 처리
     private fun observeTimerStateChanges() {
-        // 1. 모드가 BREAK로 변경됨 (Auto-Transition)
+        // 1. 모드가 BREAK로 변경됨 (Auto-Transition: Focus -> Break)
         viewModelScope.launch {
             timerRepository.timerMode.collect { mode ->
                 if (mode == TimerMode.BREAK) {
-                    // Service가 이미 저장을 완료하고 모드를 변경함
                     if (currentPurpose != null) {
-                        onFocusSessionFinished()
-                        _timerEvent.emit(TimerEvent.GoToBreak(startFocusMinutes))
-                        currentPurpose = null // Break 모드 진입 시 목적 초기화 (표시용)
+                         // Focus 완료 처리는 Service가 했음. UI 상태만 업데이트.
+                         // 단, onFocusSessionFinished()는 호출해줘야 다음 카운트로 넘어감.
+                         onFocusSessionFinished()
+                         _timerEvent.emit(TimerEvent.GoToBreak(startFocusMinutes))
+                         // currentPurpose는 유지해야 다음 Focus 때 사용 가능하지만,
+                         // 여기서는 break 끝나고 다시 focus로 갈 때 다시 세팅되어야 함?
+                         // 아니면 루프를 위해 유지? -> 유지해야 함.
+                         // 하지만 BreakScreen에서는 purpose가 필요 없음.
+                         // Focus로 돌아올 때 purpose가 null이면 곤란함.
+                         // 따라서 null 처리 하지 않음.
+                    }
+                } else if (mode == TimerMode.FOCUS) {
+                    // Break -> Focus (Auto-Loop) 감지
+                    // 만약 서비스가 루프를 돌려서 Focus로 왔다면...
+                    // 여기서 isLastSession 정보를 다시 서비스에 업데이트 해줘야 함.
+                    if (currentPurpose != null && _remainingRepeatCount.value > 0) {
+                        // 이미 실행 중인 서비스에 업데이트 Intent 전송
+                        val isLast = _remainingRepeatCount.value <= 1 // 이번이 마지막임
+                        val settings = _settings.value
+                        if (settings != null) {
+                            startTimerService(settings.focusMinutes, settings.breakMinutes, isLast, currentPurpose!!)
+                        }
                     }
                 }
             }
@@ -84,11 +102,23 @@ class TimerViewModel @Inject constructor(
             timerRepository.isRunning.collect { isRunning ->
                 if (!isRunning) {
                      val seconds = timerRepository.remainingSeconds.value
+                     
+                     // 0초이고, 모드가 FOCUS일 때만 '완료' 이벤트 발생
+                     // Break가 0초가 되어서 멈추는 경우는 없음 (Auto-Loop로 Focus로 넘어가거나, 진짜 끝났으면 isLastCheck)
+                     // Service에서 Stop을 호출하는 경우는:
+                     // 1. User Stop -> seconds > 0
+                     // 2. Last Focus Finished -> seconds == 0
+                     // 3. Break Finished but something wrong (should not happen in loop)
+                     
                      if (seconds == 0L && currentPurpose != null) {
-                         // 마지막 세션 완료 (Service가 Stop 처리함)
-                         onFocusSessionFinished()
-                         _timerEvent.emit(TimerEvent.Finished(currentPurpose ?: PomodoroPurpose.OTHERS, currentAccumulatedMinutes))
-                         currentPurpose = null
+                         // 중요: Break 모드에서 0초가 된 후 Focus로 넘어가는 찰나에 이 로직이 돌면 안됨.
+                         // 따라서 현재 모드가 FOCUS인지 확인해야 함.
+                         val currentMode = timerRepository.timerMode.value
+                         if (currentMode == TimerMode.FOCUS) {
+                             onFocusSessionFinished()
+                             _timerEvent.emit(TimerEvent.Finished(currentPurpose ?: PomodoroPurpose.OTHERS, currentAccumulatedMinutes))
+                             currentPurpose = null
+                         }
                      }
                 }
             }
@@ -97,10 +127,9 @@ class TimerViewModel @Inject constructor(
     
     private fun onFocusSessionFinished() {
         currentAccumulatedMinutes += startFocusMinutes
-        if (_remainingRepeatCount.value > 1) {
+        if (_remainingRepeatCount.value > 0) { // 1보다 클 때만 줄이는게 아니라, 완료했으니 무조건 줄임 (단 0 이상일 때)
             _remainingRepeatCount.value -= 1
         }
-        // 저장은 Service가 수행했으므로 여기서는 생략
     }
 
     private fun loadSettings() {
@@ -123,17 +152,14 @@ class TimerViewModel @Inject constructor(
 
         viewModelScope.launch {
             if (isFirstStart) {
-                // 설정값을 확실히 가져옴
                 val settings = _settings.value ?: getSettingsUseCase().first()
                 startFocusMinutes = settings.focusMinutes
                 _totalFocusTimeSeconds.value = startFocusMinutes * 60L
                 
-                // 처음 시작할 때 Repository에 시간 설정 & 시작
                 timerRepository.start(startFocusMinutes * 60L, TimerMode.FOCUS)
                 val isLast = _remainingRepeatCount.value <= 1
                 startTimerService(startFocusMinutes, settings.breakMinutes, isLast, purpose)
             } else {
-                // 재개
                 timerRepository.resume()
                 val settings = _settings.value ?: getSettingsUseCase().first()
                 val isLast = _remainingRepeatCount.value <= 1
@@ -191,7 +217,8 @@ class TimerViewModel @Inject constructor(
             putExtra("DURATION_MINUTES", durationMinutes)
             putExtra("BREAK_DURATION_MINUTES", breakMinutes)
             putExtra("IS_LAST_SESSION", isLastSession)
-            putExtra("TIMER_MODE", TimerMode.FOCUS.name)
+            putExtra("TIMER_MODE", TimerMode.FOCUS.name) // 일단 호출할 때는 Focus라고 가정하나, 루프 중 업데이트일 수 있음.
+            // 하지만 이 함수는 startFocusMinutes를 받으므로 Focus 시작/재개 용도임.
             putExtra("PURPOSE", purpose.name)
         }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
@@ -207,8 +234,6 @@ class TimerViewModel @Inject constructor(
         }
         context.stopService(intent)
     }
-
-    // completeSession 제거됨 (Service 위임)
 
     sealed interface TimerEvent {
         data class GoToBreak(val minutes: Int) : TimerEvent
