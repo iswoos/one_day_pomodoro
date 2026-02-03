@@ -1,9 +1,12 @@
 package com.studio.one_day_pomodoro.presentation.ui.screens.timer
 
 
+import android.app.AlarmManager
+import android.content.Intent
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
@@ -52,7 +55,15 @@ fun TimerScreen(
         // 권한 결과 처리
     }
 
+    // 정확한 알람 권한 요청 런처
+    val exactAlarmLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        // 설정에서 돌아온 후에도 타이머는 이미 시작됨
+    }
+
     LaunchedEffect(Unit) {
+        // 1. 알림 권한 확인 (Android 13+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(
                     context,
@@ -62,6 +73,16 @@ fun TimerScreen(
                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
+        
+        // 2. 정확한 알람 권한 확인 (Android 12+) - 필수!
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val alarmManager = context.getSystemService(AlarmManager::class.java)
+            if (!alarmManager.canScheduleExactAlarms()) {
+                val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                exactAlarmLauncher.launch(intent)
+            }
+        }
+        
         viewModel.startTimer(purpose)
     }
 

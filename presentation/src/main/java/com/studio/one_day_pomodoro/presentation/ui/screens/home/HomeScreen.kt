@@ -1,8 +1,11 @@
 package com.studio.one_day_pomodoro.presentation.ui.screens.home
 
+import android.app.AlarmManager
+import android.content.Intent
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -59,20 +62,40 @@ fun HomeScreen(
         }
     )
 
+    // 정확한 알람 권한 요청 런처 (설정 화면으로 이동)
+    val exactAlarmLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        // 설정에서 돌아온 후 타이머 시작
+        onStartClick()
+    }
+
     fun checkAndStartTimer() {
+        // 1. 알림 권한 확인 (Android 13+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(
                     context,
                     Manifest.permission.POST_NOTIFICATIONS
-                ) == PackageManager.PERMISSION_GRANTED
+                ) != PackageManager.PERMISSION_GRANTED
             ) {
-                onStartClick()
-            } else {
                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                return
             }
-        } else {
-            onStartClick()
         }
+        
+        // 2. 정확한 알람 권한 확인 (Android 12+) - 필수!
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val alarmManager = context.getSystemService(AlarmManager::class.java)
+            if (!alarmManager.canScheduleExactAlarms()) {
+                // 사용자를 설정 화면으로 안내
+                val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                exactAlarmLauncher.launch(intent)
+                return
+            }
+        }
+        
+        // 3. 모든 권한이 있으면 타이머 시작
+        onStartClick()
     }
 
     Scaffold(
