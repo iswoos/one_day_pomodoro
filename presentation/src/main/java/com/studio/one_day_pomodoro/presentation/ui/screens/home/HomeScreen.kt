@@ -1,12 +1,14 @@
 package com.studio.one_day_pomodoro.presentation.ui.screens.home
 
-import android.app.AlarmManager
-import android.content.Intent
 import android.Manifest
+import android.app.AlarmManager
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -18,7 +20,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -39,101 +40,55 @@ fun HomeScreen(
 ) {
     val summary by viewModel.dailySummary.collectAsState()
     val context = LocalContext.current
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
     
     // Smart cleanup: detect orphaned timers after process death
     LaunchedEffect(Unit) {
-        delay(300) // Small delay to avoid race with normal navigation
+        delay(300) 
         if (viewModel.isTimerRunning()) {
             viewModel.cleanupOrphanedTimer()
         }
     }
-    
-    // 알림 권한 요청 런처
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { isGranted ->
-            if (isGranted) {
-                onStartClick()
-            } else {
-                // 권한 거부 시에도 일단 타이머 시작은 시도 (알림 없이 동작할 수도 있으므로)
-                // 혹은 스낵바 등을 띄워줄 수 있음. 여기서는 바로 시작.
-                onStartClick()
-            }
-        }
-    )
 
-    // 정확한 알람 권한 안내 다이얼로그 표시 여부
+    // --- Permission Handlers ---
+    
     var showExactAlarmDialog by remember { mutableStateOf(false) }
 
-    // 정확한 알람 권한 요청 런처 (설정 화면으로 이동)
+    // Launcher for Notification permission (Android 13+)
+    val notificationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        // After interaction (granted or denied), try proceeding to next check
+        performPermissionCheck(context, null, alarmManager, { showExactAlarmDialog = true }, onStartClick)
+    }
+
+    // Launcher for Exact Alarm settings (Android 12+)
     val exactAlarmLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
-        // 설정에서 돌아온 후 타이머 시작
-        onStartClick()
+        // Return from settings: re-check everything
+        performPermissionCheck(context, notificationLauncher, alarmManager, { showExactAlarmDialog = true }, onStartClick)
     }
 
-    fun checkAndStartTimer() {
-        // 1. 알림 권한 확인 (Android 13+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                return
-            }
-        }
-        
-        // 2. 정확한 알람 권한 확인 (Android 12+) - 필수!
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val alarmManager = context.getSystemService(AlarmManager::class.java)
-            if (!alarmManager.canScheduleExactAlarms()) {
-                // 안내 다이얼로그 표시
-                showExactAlarmDialog = true
-                return
-            }
-        }
-        
-        // 3. 모든 권한이 있으면 타이머 시작
-        onStartClick()
-    }
+    // Since notificationLauncher might not be fully initialized when it's passed to itself in its own callback (logic-wise),
+    // let's pass it as a nullable or use a different approach.
+    // Actually, launchers are initialized before callbacks are executed.
 
     // 정확한 알람 권한 안내 다이얼로그
     if (showExactAlarmDialog) {
         AlertDialog(
             onDismissRequest = { showExactAlarmDialog = false },
-            title = {
-                Text(
-                    text = "알림을 위한 권한 필요",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text(
-                    text = "정확한 시간에 타이머가 작동하도록\n'알람 및 리마인더' 권한이 필요합니다.\n\n설정 화면으로 이동하여 권한을 허용해주세요.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            },
+            title = { Text(text = "알림을 위한 권한 필요", fontWeight = FontWeight.Bold) },
+            text = { Text(text = "정확한 시간에 타이머가 작동하도록\n'알람 및 리마인더' 권한이 필요합니다.\n\n설정 화면으로 이동하여 권한을 허용해주세요.") },
             confirmButton = {
-                Button(
-                    onClick = {
-                        showExactAlarmDialog = false
-                        val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
-                        exactAlarmLauncher.launch(intent)
-                    }
-                ) {
-                    Text("설정으로 이동")
-                }
+                Button(onClick = {
+                    showExactAlarmDialog = false
+                    val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                    exactAlarmLauncher.launch(intent)
+                }) { Text("설정으로 이동") }
             },
             dismissButton = {
-                TextButton(
-                    onClick = { showExactAlarmDialog = false }
-                ) {
-                    Text("취소")
-                }
+                TextButton(onClick = { showExactAlarmDialog = false }) { Text("취소") }
             }
         )
     }
@@ -142,31 +97,19 @@ fun HomeScreen(
         topBar = {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
                 IconButton(onClick = onSettingsClick) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Settings"
-                    )
+                    Icon(imageVector = Icons.Default.Settings, contentDescription = "Settings")
                 }
             }
         }
     ) { paddingValues ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues),
-            contentAlignment = Alignment.TopCenter
+                .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .widthIn(max = 600.dp)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-
-
-
             Text(
                 text = "하루 성과",
                 style = MaterialTheme.typography.headlineLarge,
@@ -183,7 +126,6 @@ fun HomeScreen(
             
             Spacer(modifier = Modifier.height(24.dp))
             
-            // 오늘 총 집중 시간 카드 (축소된 버전)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
@@ -195,15 +137,11 @@ fun HomeScreen(
                         .padding(vertical = 24.dp, horizontal = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = "총 집중 시간",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Text(text = "총 집중 시간", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "${summary?.totalFocusMinutes ?: 0}분",
-                        style = MaterialTheme.typography.displayMedium, // 크기 약간 축소 (DisplayLarge -> Medium)
+                        style = MaterialTheme.typography.displayMedium,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -212,33 +150,22 @@ fun HomeScreen(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            // 3. 집중 시작 버튼을 아래에 위치 (Total Time 바로 아래)
             Button(
-                onClick = { checkAndStartTimer() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
+                onClick = { 
+                    performPermissionCheck(context, notificationLauncher, alarmManager, { showExactAlarmDialog = true }, onStartClick)
+                },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Text(text = "집중 시작", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
             
             Spacer(modifier = Modifier.height(32.dp))
             
-            // 4. 그 아래에 분야별 성과 항목 노출
-            
-            Text(
-                text = "분야별 성과",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
+            Text(text = "분야별 성과", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
            
             Spacer(modifier = Modifier.height(16.dp))
             
-            // 목적별 리스트
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -249,11 +176,9 @@ fun HomeScreen(
                     PurposeSummaryItem(purpose, time, count)
                 }
             }
-            // Bottom padding for scroll
             Spacer(modifier = Modifier.height(80.dp))
         }
     }
-}
 }
 
 @Composable
@@ -266,33 +191,43 @@ fun PurposeSummaryItem(purpose: PomodoroPurpose, minutes: Int, count: Int) {
         shape = RoundedCornerShape(16.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 14.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = purpose.displayName,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
-            )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "${minutes}분",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = "${count}회",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline
-                )
+            Text(text = purpose.displayName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "${minutes}분", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Text(text = "${count}회", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
             }
         }
     }
+}
+
+private fun performPermissionCheck(
+    context: Context,
+    notificationLauncher: ActivityResultLauncher<String>?,
+    alarmManager: AlarmManager?,
+    onShowExactAlarmDialog: () -> Unit,
+    onStartClick: () -> Unit
+) {
+    // 1. Notification Permission (Android 13+)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) 
+            != PackageManager.PERMISSION_GRANTED) {
+            notificationLauncher?.launch(Manifest.permission.POST_NOTIFICATIONS)
+            return
+        }
+    }
+
+    // 2. Exact Alarm Permission (Android 12+)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (alarmManager?.canScheduleExactAlarms() == false) {
+            onShowExactAlarmDialog()
+            return
+        }
+    }
+
+    // 3. Success -> Proceed
+    onStartClick()
 }
