@@ -62,6 +62,9 @@ fun HomeScreen(
         }
     )
 
+    // 정확한 알람 권한 안내 다이얼로그 표시 여부
+    var showExactAlarmDialog by remember { mutableStateOf(false) }
+
     // 정확한 알람 권한 요청 런처 (설정 화면으로 이동)
     val exactAlarmLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -87,15 +90,52 @@ fun HomeScreen(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val alarmManager = context.getSystemService(AlarmManager::class.java)
             if (!alarmManager.canScheduleExactAlarms()) {
-                // 사용자를 설정 화면으로 안내
-                val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
-                exactAlarmLauncher.launch(intent)
+                // 안내 다이얼로그 표시
+                showExactAlarmDialog = true
                 return
             }
         }
         
         // 3. 모든 권한이 있으면 타이머 시작
         onStartClick()
+    }
+
+    // 정확한 알람 권한 안내 다이얼로그
+    if (showExactAlarmDialog) {
+        AlertDialog(
+            onDismissRequest = { showExactAlarmDialog = false },
+            title = {
+                Text(
+                    text = "알림을 위한 권한 필요",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "정확한 시간에 타이머가 작동하도록\n'알람 및 리마인더' 권한이 필요합니다.\n\n설정 화면으로 이동하여 권한을 허용해주세요.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showExactAlarmDialog = false
+                        val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                        exactAlarmLauncher.launch(intent)
+                    }
+                ) {
+                    Text("설정으로 이동")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showExactAlarmDialog = false }
+                ) {
+                    Text("취소")
+                }
+            }
+        )
     }
 
     Scaffold(

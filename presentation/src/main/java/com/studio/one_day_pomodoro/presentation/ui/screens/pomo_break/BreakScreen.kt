@@ -126,8 +126,8 @@ fun BreakScreen(
             
             Spacer(modifier = Modifier.height(48.dp))
             
-            // 집중 종료 버튼
-            TextButton(
+            // 집중 종료 버튼 (빨간색)
+            Button(
                 onClick = {
                     viewModel.stopBreak()
                     onStopClick()
@@ -135,13 +135,16 @@ fun BreakScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                )
             ) {
                 Text(
                     text = "집중 종료",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    fontSize = 18.sp
                 )
             }
         }
