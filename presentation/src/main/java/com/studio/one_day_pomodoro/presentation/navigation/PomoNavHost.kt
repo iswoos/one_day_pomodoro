@@ -60,7 +60,7 @@ fun PomoNavHost(
             arguments = listOf(navArgument("purpose") { type = NavType.StringType })
         ) { backStackEntry ->
             val purposeName = backStackEntry.arguments?.getString("purpose")
-            val purpose = PomodoroPurpose.valueOf(purposeName ?: PomodoroPurpose.OTHERS.name)
+            val purpose = PomodoroPurpose.fromName(purposeName)
             
             TimerScreen(
                 purpose = purpose,
@@ -109,7 +109,7 @@ fun PomoNavHost(
                 navArgument("minutes") { type = NavType.IntType }
             )
         ) { backStackEntry ->
-            val purpose = PomodoroPurpose.valueOf(backStackEntry.arguments?.getString("purpose") ?: "OTHERS")
+            val purpose = PomodoroPurpose.fromName(backStackEntry.arguments?.getString("purpose"))
             val minutes = backStackEntry.arguments?.getInt("minutes") ?: 0
             
             // 요약 화면 진입 시에도 보험용으로 로드 시도 (InterstitialAdHelper 내부에서 중복 체크함)

@@ -49,12 +49,13 @@ class TimerService : Service() {
         try {
             notificationManager.cancel(2)
             
-            val seconds = if (intent?.action == "ACTION_TIMER_EXPIRED") {
-                handleTimerExpired()
-                0L
+            val seconds: Long
+            if (intent?.action == "ACTION_TIMER_EXPIRED") {
+                handleTimerExpired(intent)
+                seconds = 0L
             } else {
                 val modeName = intent?.getStringExtra("TIMER_MODE") ?: timerRepository.timerMode.value.name
-                val mode = try { TimerMode.valueOf(modeName) } catch (e: Exception) { TimerMode.NONE }
+                val mode = TimerMode.fromName(modeName)
 
                 val durationMinutes = intent?.getIntExtra("DURATION_MINUTES", timerRepository.focusDurationMinutes.value) ?: 25
                 val breakMinutes = intent?.getIntExtra("BREAK_DURATION_MINUTES", timerRepository.breakDurationMinutes.value) ?: 5
@@ -62,16 +63,15 @@ class TimerService : Service() {
                 val completedSessions = intent?.getIntExtra("COMPLETED_SESSIONS", timerRepository.completedSessions.value) ?: 0
                 
                 val purposeName = intent?.getStringExtra("PURPOSE") ?: timerRepository.currentPurpose.value.name
-                val purpose = try { PomodoroPurpose.valueOf(purposeName) } catch (e: Exception) { PomodoroPurpose.OTHERS }
+                val purpose = PomodoroPurpose.fromName(purposeName)
 
-                val totalSeconds = if (mode == TimerMode.FOCUS) durationMinutes * 60L else breakMinutes * 60L
-                
-                // 만약 앱 실행 중 다시 호출되었는데, 이미 같은 모드라면 상태를 뭉개지 않음 (중요!)
-                if (timerRepository.isRunning.value && timerRepository.timerMode.value == mode && timerRepository.remainingSeconds.value > 0) {
-                    timerRepository.remainingSeconds.value
+                // [FIX] 이미 타이머가 동작 중이고 모드가 같다면 리셋 방지 (가장 중요!)
+                if (timerRepository.isRunning.value && timerRepository.timerMode.value == mode) {
+                    seconds = timerRepository.remainingSeconds.value
                 } else {
+                    val totalSec = if (mode == TimerMode.FOCUS) durationMinutes * 60L else breakMinutes * 60L
                     timerRepository.start(
-                        seconds = totalSeconds,
+                        seconds = totalSec,
                         mode = mode,
                         focusMin = durationMinutes,
                         breakMin = breakMinutes,
@@ -79,7 +79,7 @@ class TimerService : Service() {
                         completed = completedSessions,
                         purpose = purpose
                     )
-                    totalSeconds
+                    seconds = totalSec
                 }
             }
             
@@ -93,7 +93,6 @@ class TimerService : Service() {
         
         return START_STICKY
     }
-    
     override fun onBind(p0: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -160,19 +159,15 @@ class TimerService : Service() {
                 if (!isRunning) {
                      val seconds = timerRepository.remainingSeconds.value
                      
-                     // 1. Focus Finished -> Break (unless last)
-                     // 2. Break Finished -> Focus (unless last? wait, Break is never last basically, Focus is last)
-                     
-                     val isLast = timerRepository.completedSessions.value >= timerRepository.totalSessions.value - 1
-                     val isFocusFinished = seconds <= 0 && timerRepository.timerMode.value == TimerMode.FOCUS && !isLast
+                     val isFocusFinished = seconds <= 0 && timerRepository.timerMode.value == TimerMode.FOCUS
                      val isBreakFinished = seconds <= 0 && timerRepository.timerMode.value == TimerMode.BREAK
                      
-                      if (isFocusFinished) {
-                         transitionToBreak()
+                     if (isFocusFinished) {
+                         processFocusCompletion()
                      } else if (isBreakFinished) {
                          transitionToNextFocus()
                      } else if (seconds <= 0) {
-                         // 그 외 (마지막 세션 종료, 혹은 유저 중단)
+                         // 그 외 (Manual stop or other completion)
                          cancelAlarm()
                          stopForeground(STOP_FOREGROUND_REMOVE)
                          stopSelf()
@@ -198,8 +193,9 @@ class TimerService : Service() {
         }
     }
     
-    private fun transitionToBreak() {
+    private fun processFocusCompletion() {
         serviceScope.launch {
+            // 1. Save Session
             savePomodoroSessionUseCase(
                 PomodoroSession(
                     purpose = timerRepository.currentPurpose.value,
@@ -208,17 +204,31 @@ class TimerService : Service() {
                 )
             )
             triggerVibration(VibrationPattern.COMPLETE)
-            
+
+            // 2. Increment completed count
             val newCompleted = timerRepository.completedSessions.value + 1
-            timerRepository.start(
-                seconds = timerRepository.breakDurationMinutes.value * 60L,
-                mode = TimerMode.BREAK,
-                focusMin = timerRepository.focusDurationMinutes.value,
-                breakMin = timerRepository.breakDurationMinutes.value,
-                total = timerRepository.totalSessions.value,
-                completed = newCompleted,
-                purpose = timerRepository.currentPurpose.value
-            )
+            
+            // 3. Determine Next Step
+            if (newCompleted >= timerRepository.totalSessions.value) {
+                // All finished! 
+                // Repository update to reflect final state
+                timerRepository.updateSessionInfo(completed = newCompleted, total = timerRepository.totalSessions.value)
+                timerRepository.stop()
+                
+                // Show final notification if needed
+                updateNotification(0) 
+            } else {
+                // Transition to Break
+                timerRepository.start(
+                    seconds = timerRepository.breakDurationMinutes.value * 60L,
+                    mode = TimerMode.BREAK,
+                    focusMin = timerRepository.focusDurationMinutes.value,
+                    breakMin = timerRepository.breakDurationMinutes.value,
+                    total = timerRepository.totalSessions.value,
+                    completed = newCompleted,
+                    purpose = timerRepository.currentPurpose.value
+                )
+            }
         }
     }
     
@@ -343,35 +353,37 @@ class TimerService : Service() {
         }
     }
 
-    private fun handleTimerExpired() {
+    private fun handleTimerExpired(intent: Intent?) {
         // 알람에 의해 호출됨. 만약 레포지토리가 아직 동작 중이라면 강제로 0으로 만들어서 완료 트리거
-        if (timerRepository.isRunning.value && timerRepository.remainingSeconds.value > 0) {
-            // repository.stop() 또는 직접 초 갱신? 
-            // RepositoryImpl을 수정해서 초를 바로 조정할 수 있는 기능이 없으므로
-            // 여기서는 repository.stop()은 하지 않고, transition logic을 직접 수행하거나
-            // repository에 finish() 기능 추가 필요.
-            // 일단은 transitionToBreak/NextFocus 로직이 observeTimerState에서 
-            // isRunning=false && seconds<=0 일 때 동작하도록 되어 있으므로
-            // repository.stop()을 하면 seconds가 0이 아닐 수 있음.
-            
-            // 따라서 repository.start(0, currentMode)를 호출하면 
-            // 즉시 isRunning=false && remaining=0 이 되어 observer가 동작함.
-            timerRepository.start(
-                seconds = 0,
-                mode = timerRepository.timerMode.value,
-                focusMin = timerRepository.focusDurationMinutes.value,
-                breakMin = timerRepository.breakDurationMinutes.value,
-                total = timerRepository.totalSessions.value,
-                completed = timerRepository.completedSessions.value,
-                purpose = timerRepository.currentPurpose.value
-            )
-        }
+        // Persistence 덕분에 repository.value 가 살아있겠지만, 더 확실하게 하기 위해
+        // 1. Intent에서 모드/세션 정보 추출
+        val modeName = intent?.getStringExtra("TIMER_MODE") ?: timerRepository.timerMode.value.name
+        val mode = TimerMode.fromName(modeName)
+        val completed = intent?.getIntExtra("COMPLETED_SESSIONS", timerRepository.completedSessions.value) ?: 0
+        val purposeName = intent?.getStringExtra("PURPOSE") ?: timerRepository.currentPurpose.value.name
+        val purpose = PomodoroPurpose.fromName(purposeName)
+
+        // 2. Repository의 상태를 0으로 맞춤 (isRunning=false 가 되면서 observeTimerState가 동작하도록 함)
+        // 이때 모드와 세션 수를 Intent 기반으로 보정하여 processFocusCompletion이 정확하게 동작하게 함.
+        timerRepository.start(
+            seconds = 0,
+            mode = mode,
+            focusMin = timerRepository.focusDurationMinutes.value,
+            breakMin = timerRepository.breakDurationMinutes.value,
+            total = timerRepository.totalSessions.value,
+            completed = completed,
+            purpose = purpose
+        )
     }
 
     private fun scheduleAlarm(seconds: Long) {
         cancelAlarm()
         
-        val intent = Intent(this, AlarmReceiver::class.java)
+        val intent = Intent(this, AlarmReceiver::class.java).apply {
+            putExtra("TIMER_MODE", timerRepository.timerMode.value.name)
+            putExtra("COMPLETED_SESSIONS", timerRepository.completedSessions.value)
+            putExtra("PURPOSE", timerRepository.currentPurpose.value.name)
+        }
         alarmPendingIntent = PendingIntent.getBroadcast(
             this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )

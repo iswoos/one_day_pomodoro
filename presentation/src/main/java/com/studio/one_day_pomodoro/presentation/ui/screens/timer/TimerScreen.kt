@@ -55,12 +55,10 @@ fun TimerScreen(
     // State-based navigation check (Robustness for background transitions)
     LaunchedEffect(timerMode) {
         if (timerMode == com.studio.one_day_pomodoro.domain.model.TimerMode.BREAK) {
-            val settings = viewModel.settings.value
-            val totalSessions = settings?.repeatCount ?: 4
-            val remainingSessions = viewModel.remainingRepeatCount.value
-            val completedSessions = if (totalSessions > 0) totalSessions - remainingSessions else 0
-            val duration = settings?.focusMinutes ?: 25
-            onBreakStart(duration, completedSessions, totalSessions)
+            val total = viewModel.totalSessions.value
+            val completed = viewModel.completedSessions.value
+            val duration = viewModel.focusDurationMinutes.value
+            onBreakStart(duration, completed, total)
         }
     }
 
@@ -68,12 +66,7 @@ fun TimerScreen(
         viewModel.timerEvent.collect { event ->
             when (event) {
                 is TimerViewModel.TimerEvent.GoToBreak -> {
-                    // repeatCount 값이 있는지 확인 필요. ViewModel의 settings 참조
-                    val settings = viewModel.settings.value
-                    val totalSessions = settings?.repeatCount ?: 4
-                    val remainingSessions = viewModel.remainingRepeatCount.value
-                    val completedSessions = if (totalSessions > 0) totalSessions - remainingSessions else 0
-                    onBreakStart(event.minutes, completedSessions, totalSessions)
+                    onBreakStart(event.minutes, viewModel.completedSessions.value, viewModel.totalSessions.value)
                 }
                 is TimerViewModel.TimerEvent.Finished -> {
                     onSummaryClick(event.purpose, event.minutes)
@@ -92,12 +85,8 @@ fun TimerScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // 세션 카운터
-            val settingsState = viewModel.settings.collectAsState()
-            val settings = settingsState.value
-            val totalSessions = settings?.repeatCount ?: 4
-            val remainingSessions by viewModel.remainingRepeatCount.collectAsState()
-            val completedSessions = if (totalSessions > 0) totalSessions - remainingSessions else 0
+            val totalSessions by viewModel.totalSessions.collectAsState()
+            val completedSessions by viewModel.completedSessions.collectAsState()
             
             Card(
                 colors = CardDefaults.cardColors(
@@ -116,7 +105,8 @@ fun TimerScreen(
             
             Spacer(modifier = Modifier.height(48.dp))
             
-            val totalTimeSeconds by viewModel.totalFocusTimeSeconds.collectAsState()
+            val focusDurationMin by viewModel.focusDurationMinutes.collectAsState()
+            val totalTimeSeconds = focusDurationMin * 60L
             val progress = if (totalTimeSeconds > 0) remainingTime.toFloat() / totalTimeSeconds else 0f
             
             Box(contentAlignment = Alignment.Center) {

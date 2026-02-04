@@ -50,12 +50,12 @@ class MainActivity : ComponentActivity() {
                     val focusDuration = timerRepository.focusDurationMinutes.first()
                     val completed = timerRepository.completedSessions.first()
                     val total = timerRepository.totalSessions.first()
-                    val purpose = timerRepository.currentPurpose.first().name
+                    val purpose = timerRepository.currentPurpose.first()
 
                     startDestination = if (isRunning) {
                         when (mode) {
-                            TimerMode.BREAK -> "break_screen/$focusDuration/$completed/$total"
-                            else -> "timer_screen/$purpose"
+                            TimerMode.BREAK -> Screen.Break.createRoute(focusDuration, completed, total)
+                            else -> Screen.Timer.createRoute(purpose)
                         }
                     } else {
                         // Not running. Check if we just finished.
@@ -67,10 +67,10 @@ class MainActivity : ComponentActivity() {
                         
                         if (isFocusFinished) {
                              // Focus finished -> Go to Break
-                             "break_screen/$focusDuration/$completed/$total"
+                             Screen.Break.createRoute(focusDuration, completed, total)
                         } else if (isBreakFinished) {
                              // Break finished -> Go to Timer
-                             "timer_screen/$purpose"
+                             Screen.Timer.createRoute(purpose)
                         } else {
                              Screen.Home.route
                         }

@@ -29,8 +29,12 @@ fun BreakScreen(
     viewModel: BreakViewModel = hiltViewModel()
 ) {
     val remainingSeconds by viewModel.remainingSeconds.collectAsState()
-    val totalBreakSeconds by viewModel.totalBreakSeconds.collectAsState()
+    val breakDurationMin by viewModel.breakDurationMinutes.collectAsState()
+    val totalBreakSeconds = breakDurationMin * 60L
     val progress = if (totalBreakSeconds > 0) remainingSeconds.toFloat() / totalBreakSeconds else 0f
+    
+    val currentCompletedSessions by viewModel.completedSessions.collectAsState()
+    val currentTotalSessions by viewModel.totalSessions.collectAsState()
     
     // Handle system back button
     BackHandler {
@@ -38,12 +42,16 @@ fun BreakScreen(
         onStopClick()
     }
 
-    LaunchedEffect(Unit) {
-        viewModel.startBreak()
+    val timerMode by viewModel.timerMode.collectAsState()
+
+    LaunchedEffect(timerMode) {
+        if (timerMode == com.studio.one_day_pomodoro.domain.model.TimerMode.FOCUS) {
+            onBreakEnd()
+        }
     }
 
     LaunchedEffect(remainingSeconds) {
-        if (remainingSeconds <= 0 && totalBreakSeconds > 0) {
+        if (remainingSeconds <= 0 && breakDurationMin > 0) {
             onBreakEnd()
         }
     }
@@ -66,7 +74,7 @@ fun BreakScreen(
                 shape = RoundedCornerShape(24.dp)
             ) {
                 Text(
-                    text = "완료된 세션: $completedSessions / $totalSessions",
+                    text = "완료된 세션: $currentCompletedSessions / $currentTotalSessions",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onErrorContainer,

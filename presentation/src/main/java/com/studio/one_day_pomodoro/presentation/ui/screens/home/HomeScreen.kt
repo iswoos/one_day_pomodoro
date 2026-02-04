@@ -55,10 +55,11 @@ fun HomeScreen(
     var showExactAlarmDialog by remember { mutableStateOf(false) }
 
     // Launcher for Notification permission (Android 13+)
-    val notificationLauncher = rememberLauncherForActivityResult(
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        // After interaction (granted or denied), try proceeding to next check
+        // After interaction (granted or denied), re-run the check. 
+        // Passing null as launcher because we don't want to re-trigger the dialog immediately on denial.
         performPermissionCheck(context, null, alarmManager, { showExactAlarmDialog = true }, onStartClick)
     }
 
@@ -66,8 +67,8 @@ fun HomeScreen(
     val exactAlarmLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
-        // Return from settings: re-check everything
-        performPermissionCheck(context, notificationLauncher, alarmManager, { showExactAlarmDialog = true }, onStartClick)
+        // Return from settings: re-run the full check to see if permission was granted
+        performPermissionCheck(context, notificationPermissionLauncher, alarmManager, { showExactAlarmDialog = true }, onStartClick)
     }
 
     // Since notificationLauncher might not be fully initialized when it's passed to itself in its own callback (logic-wise),
@@ -152,7 +153,7 @@ fun HomeScreen(
             
             Button(
                 onClick = { 
-                    performPermissionCheck(context, notificationLauncher, alarmManager, { showExactAlarmDialog = true }, onStartClick)
+                    performPermissionCheck(context, notificationPermissionLauncher, alarmManager, { showExactAlarmDialog = true }, onStartClick)
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(16.dp)
@@ -221,8 +222,11 @@ private fun performPermissionCheck(
     }
 
     // 2. Exact Alarm Permission (Android 12+)
+    // !IMPORTANT: Must check for Android 12+ AND verify if permission is granted.
+    // If alarmManager is null, we safely exit or try to proceed, but on real S+ devices it shouldn't be null.
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        if (alarmManager?.canScheduleExactAlarms() == false) {
+        val canSchedule = alarmManager?.canScheduleExactAlarms() ?: false
+        if (!canSchedule) {
             onShowExactAlarmDialog()
             return
         }

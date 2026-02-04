@@ -8,5 +8,11 @@ enum class PomodoroPurpose(val displayName: String) {
     READ("독서"),
     WORK("업무"),
     HEALTH("운동"),
-    OTHERS("기타")
+    OTHERS("기타");
+
+    companion object {
+        fun fromName(name: String?): PomodoroPurpose {
+            return entries.find { it.name == name } ?: OTHERS
+        }
+    }
 }
