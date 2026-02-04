@@ -70,20 +70,22 @@ class TimerViewModel @Inject constructor(
         }
         
         viewModelScope.launch {
-            timerRepository.isRunning.collect { isRunning ->
+            // isRunning과 completedSessions를 모두 관찰하여 정확한 완료 시점을 파악합니다.
+            kotlinx.coroutines.flow.combine(
+                timerRepository.isRunning,
+                timerRepository.completedSessions,
+                timerRepository.totalSessions
+            ) { isRunning, completed, total ->
+                Triple(isRunning, completed, total)
+            }.collect { (isRunning, completed, total) ->
                 if (!isRunning) {
-                     val seconds = timerRepository.remainingSeconds.value
-                     if (seconds == 0L) {
-                         val completed = timerRepository.completedSessions.value
-                         val total = timerRepository.totalSessions.value
-                         // 모든 세션이 정말 끝났을 때 (모드가 이미 NONE으로 바뀌었을 수 있으므로 세션 수로 판단)
-                         if (completed > 0 && completed >= total) {
-                             _timerEvent.emit(TimerEvent.Finished(
-                                 timerRepository.currentPurpose.value, 
-                                 completed * timerRepository.focusDurationMinutes.value
-                             ))
-                         }
-                     }
+                    val seconds = timerRepository.remainingSeconds.value
+                    if (seconds == 0L && completed > 0 && completed >= total) {
+                        _timerEvent.emit(TimerEvent.Finished(
+                            timerRepository.currentPurpose.value,
+                            completed * timerRepository.focusDurationMinutes.value
+                        ))
+                    }
                 }
             }
         }

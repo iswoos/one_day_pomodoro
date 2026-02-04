@@ -60,14 +60,20 @@ class MainActivity : ComponentActivity() {
                             else -> Screen.Timer.createRoute(purpose)
                         }
                     } else {
+                        val isLast = completed > 0 && completed >= total
+                        // 모드가 이미 NONE으로 바뀌었을 수 있으므로, 세션 완료 수로도 판단합니다.
                         val isFocusFinished = (finishedModeName == TimerMode.FOCUS.name) || 
-                                              (repoSeconds == 0L && repoMode == TimerMode.FOCUS)
+                                              (repoSeconds == 0L && (repoMode == TimerMode.FOCUS || (isLast && repoMode == TimerMode.NONE)))
                         
                         val isBreakFinished = (finishedModeName == TimerMode.BREAK.name) || 
                                               (repoSeconds == 0L && repoMode == TimerMode.BREAK)
                         
                         if (isFocusFinished) {
-                             Screen.Break.createRoute(focusDuration, completed, total)
+                             if (isLast) {
+                                 Screen.Summary.createRoute(purpose, completed * focusDuration)
+                             } else {
+                                 Screen.Break.createRoute(focusDuration, completed, total)
+                             }
                         } else if (isBreakFinished) {
                              Screen.Timer.createRoute(purpose)
                         } else {
