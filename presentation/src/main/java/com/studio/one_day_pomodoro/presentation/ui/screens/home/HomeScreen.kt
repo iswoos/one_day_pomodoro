@@ -39,17 +39,18 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val summary by viewModel.dailySummary.collectAsState()
+    val currentDate by viewModel.currentDate.collectAsState()
     val context = LocalContext.current
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
     
     // Smart cleanup: detect orphaned timers after process death
     LaunchedEffect(Unit) {
+        viewModel.refreshDate()
         delay(300) 
         if (viewModel.isTimerRunning()) {
             viewModel.cleanupOrphanedTimer()
         }
     }
-
     // --- Permission Handlers ---
     
     var showExactAlarmDialog by remember { mutableStateOf(false) }
@@ -59,7 +60,6 @@ fun HomeScreen(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         // After interaction (granted or denied), re-run the check. 
-        // Passing null as launcher because we don't want to re-trigger the dialog immediately on denial.
         performPermissionCheck(context, null, alarmManager, { showExactAlarmDialog = true }, onStartClick)
     }
 
@@ -67,13 +67,9 @@ fun HomeScreen(
     val exactAlarmLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
-        // Return from settings: re-run the full check to see if permission was granted
+        // Return from settings: re-run the full check
         performPermissionCheck(context, notificationPermissionLauncher, alarmManager, { showExactAlarmDialog = true }, onStartClick)
     }
-
-    // Since notificationLauncher might not be fully initialized when it's passed to itself in its own callback (logic-wise),
-    // let's pass it as a nullable or use a different approach.
-    // Actually, launchers are initialized before callbacks are executed.
 
     // 정확한 알람 권한 안내 다이얼로그
     if (showExactAlarmDialog) {
@@ -119,7 +115,7 @@ fun HomeScreen(
             )
             
             Text(
-                text = LocalDate.now().format(DateTimeFormatter.ofPattern("M월 d일 (E)", Locale.KOREAN)),
+                text = currentDate.format(DateTimeFormatter.ofPattern("M월 d일 (E)", Locale.KOREAN)),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.outline

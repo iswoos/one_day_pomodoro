@@ -215,28 +215,58 @@ class TimerService : Service() {
     
     private fun processFocusCompletion() {
         serviceScope.launch {
-            // 1. Save Session
-            savePomodoroSessionUseCase(
-                PomodoroSession(
-                    purpose = timerRepository.currentPurpose.value,
-                    focusDurationInMinutes = timerRepository.focusDurationMinutes.value,
-                    completedAt = LocalDateTime.now()
+            // 1. Save Session (Handle Date Crossing)
+            val now = LocalDateTime.now()
+            val focusDuration = timerRepository.focusDurationMinutes.value
+            val startTime = now.minusMinutes(focusDuration.toLong())
+            
+            if (startTime.toLocalDate() != now.toLocalDate()) {
+                // Date crossed: Split session
+                val midnight = now.toLocalDate().atStartAtMidnight()
+                val minutesBeforeMidnight = java.time.Duration.between(startTime, midnight).toMinutes().toInt()
+                val minutesAfterMidnight = focusDuration - minutesBeforeMidnight
+                
+                if (minutesBeforeMidnight > 0) {
+                    savePomodoroSessionUseCase(
+                        PomodoroSession(
+                            purpose = timerRepository.currentPurpose.value,
+                            focusDurationInMinutes = minutesBeforeMidnight,
+                            completedAt = midnight.minusSeconds(1)
+                        )
+                    )
+                }
+                if (minutesAfterMidnight > 0) {
+                    savePomodoroSessionUseCase(
+                        PomodoroSession(
+                            purpose = timerRepository.currentPurpose.value,
+                            focusDurationInMinutes = minutesAfterMidnight,
+                            completedAt = now
+                        )
+                    )
+                }
+            } else {
+                // Same day
+                savePomodoroSessionUseCase(
+                    PomodoroSession(
+                        purpose = timerRepository.currentPurpose.value,
+                        focusDurationInMinutes = focusDuration,
+                        completedAt = now
+                    )
                 )
-            )
+            }
             triggerVibration(VibrationPattern.COMPLETE)
 
             // 2. Increment completed count
             val newCompleted = timerRepository.completedSessions.value + 1
             
-            // 3. Determine Next Step
             if (newCompleted >= timerRepository.totalSessions.value) {
                 // All finished! 
                 // Repository update to reflect final state
                 timerRepository.updateSessionInfo(completed = newCompleted, total = timerRepository.totalSessions.value)
-                timerRepository.stop()
                 
-                // Show final notification if needed
+                // Show final notification if needed (stop 이전에 호출하여 모드 정보 유지)
                 updateNotification(0) 
+                timerRepository.stop()
             } else {
                 // Transition to Break
                 timerRepository.start(
@@ -268,15 +298,19 @@ class TimerService : Service() {
     }
 
     private fun updateNotification(seconds: Long) {
+        val currentMode = timerRepository.timerMode.value
         if (seconds > 0) {
             notificationManager.notify(notificationId, createNotification(seconds))
         } else {
              // 0초 (완료 시점)
              
-             // Auto-Switching 대상이면 알림 띄우지 않고 바로 전환
-             val isLast = timerRepository.completedSessions.value >= timerRepository.totalSessions.value - 1
-             val isFocusFinished = timerRepository.timerMode.value == TimerMode.FOCUS && !isLast
-             val isBreakFinished = timerRepository.timerMode.value == TimerMode.BREAK
+             // Auto-Switching 대상이면 알림 띄우지 않고 바로 전환 (마지막 세션이 아닐 때)
+             val total = timerRepository.totalSessions.value
+             val completed = timerRepository.completedSessions.value
+             val isLast = completed >= total - (if (currentMode == TimerMode.FOCUS) 1 else 0)
+             
+             val isFocusFinished = currentMode == TimerMode.FOCUS && !isLast
+             val isBreakFinished = currentMode == TimerMode.BREAK
              
              if (isFocusFinished || isBreakFinished) {
                  return
@@ -298,7 +332,7 @@ class TimerService : Service() {
                 .setContentIntent(PendingIntent.getActivity(
                     this, 0, Intent(this, MainActivity::class.java).apply {
                         flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                        putExtra("TIMER_FINISHED_MODE", timerRepository.timerMode.value.name)
+                        putExtra("TIMER_FINISHED_MODE", currentMode.name)
                     }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                 ))
                 .build()
@@ -449,5 +483,9 @@ class TimerService : Service() {
             alarmManager.cancel(it)
             alarmPendingIntent = null
         }
+    }
+
+    private fun java.time.LocalDate.atStartAtMidnight(): LocalDateTime {
+        return this.atStartOfDay()
     }
 }

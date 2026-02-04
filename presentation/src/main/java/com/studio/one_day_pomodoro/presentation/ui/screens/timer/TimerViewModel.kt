@@ -74,12 +74,13 @@ class TimerViewModel @Inject constructor(
                 if (!isRunning) {
                      val seconds = timerRepository.remainingSeconds.value
                      if (seconds == 0L) {
-                         val currentMode = timerRepository.timerMode.value
-                         if (currentMode == TimerMode.FOCUS && timerRepository.completedSessions.value >= timerRepository.totalSessions.value) {
-                             // 모든 세션이 정말 끝났을 때만 Finished 이벤트 발생
+                         val completed = timerRepository.completedSessions.value
+                         val total = timerRepository.totalSessions.value
+                         // 모든 세션이 정말 끝났을 때 (모드가 이미 NONE으로 바뀌었을 수 있으므로 세션 수로 판단)
+                         if (completed > 0 && completed >= total) {
                              _timerEvent.emit(TimerEvent.Finished(
                                  timerRepository.currentPurpose.value, 
-                                 timerRepository.completedSessions.value * timerRepository.focusDurationMinutes.value
+                                 completed * timerRepository.focusDurationMinutes.value
                              ))
                          }
                      }
