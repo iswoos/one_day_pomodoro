@@ -102,6 +102,18 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun toggleVibrationEnabled(enabled: Boolean) {
+        _temporarySettings.value?.let { current ->
+            _temporarySettings.value = current.copy(vibrationEnabled = enabled)
+        }
+    }
+
+    fun setVibrationIntensity(intensity: Float) {
+        _temporarySettings.value?.let { current ->
+            _temporarySettings.value = current.copy(vibrationIntensity = intensity)
+        }
+    }
+
     fun saveSettings() {
         _temporarySettings.value?.let { newSettings ->
             viewModelScope.launch {

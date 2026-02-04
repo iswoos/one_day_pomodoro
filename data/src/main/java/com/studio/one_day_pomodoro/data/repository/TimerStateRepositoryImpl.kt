@@ -74,7 +74,7 @@ class TimerStateRepositoryImpl @Inject constructor(
         _currentPurpose.value = purpose
         
         targetEndTimeMillis = SystemClock.elapsedRealtime() + (seconds * 1000)
-        saveState()
+        saveState() // 즉시 저장
         startTimerJob()
     }
 
@@ -87,14 +87,14 @@ class TimerStateRepositoryImpl @Inject constructor(
     override fun pause() {
         _isRunning.value = false
         timerJob?.cancel()
-        saveState()
+        saveState() // 즉시 저장
     }
 
     override fun resume() {
         if (_remainingSeconds.value > 0) {
             _isRunning.value = true
             targetEndTimeMillis = SystemClock.elapsedRealtime() + (_remainingSeconds.value * 1000)
-            saveState()
+            saveState() // 즉시 저장
             startTimerJob()
         }
     }
@@ -104,7 +104,7 @@ class TimerStateRepositoryImpl @Inject constructor(
         _timerMode.value = TimerMode.NONE
         timerJob?.cancel()
         _remainingSeconds.value = 0
-        saveState()
+        saveState() // 즉시 저장
     }
 
     private fun startTimerJob() {
@@ -151,48 +151,84 @@ class TimerStateRepositoryImpl @Inject constructor(
     }
 
     private fun loadState() {
-        _remainingSeconds.value = prefs.getLong("remaining_seconds", 0L)
-        _isRunning.value = prefs.getBoolean("is_running", false)
-        
-        val savedMode = prefs.getString("timer_mode", TimerMode.NONE.name)
-        _timerMode.value = TimerMode.fromName(savedMode)
-        
-        _focusDurationMinutes.value = prefs.getInt("focus_duration", 25)
-        _breakDurationMinutes.value = prefs.getInt("break_duration", 5)
-        _totalSessions.value = prefs.getInt("total_sessions", 1)
-        _completedSessions.value = prefs.getInt("completed_sessions", 0)
-        
-        val savedPurpose = prefs.getString("current_purpose", PomodoroPurpose.OTHERS.name)
-        _currentPurpose.value = PomodoroPurpose.fromName(savedPurpose)
-        
+        val savedIsRunning = prefs.getBoolean("is_running", false)
+        if (!savedIsRunning) {
+            _remainingSeconds.value = prefs.getLong("remaining_seconds", 0L)
+            _isRunning.value = false
+            _timerMode.value = TimerMode.fromName(prefs.getString("timer_mode", TimerMode.NONE.name))
+            _focusDurationMinutes.value = prefs.getInt("focus_duration", 25)
+            _breakDurationMinutes.value = prefs.getInt("break_duration", 5)
+            _totalSessions.value = prefs.getInt("total_sessions", 1)
+            _completedSessions.value = prefs.getInt("completed_sessions", 0)
+            _currentPurpose.value = PomodoroPurpose.fromName(prefs.getString("current_purpose", PomodoroPurpose.OTHERS.name))
+            return
+        }
+
+        // 실행 중이었던 경우, 현재 시각 기준으로 상태 시뮬레이션
+        var currentMode = TimerMode.fromName(prefs.getString("timer_mode", TimerMode.NONE.name))
+        var currentRemaining = prefs.getLong("remaining_seconds", 0L)
+        var currentCompleted = prefs.getInt("completed_sessions", 0)
+        val total = prefs.getInt("total_sessions", 1)
+        val focusMin = prefs.getInt("focus_duration", 25)
+        val breakMin = prefs.getInt("break_duration", 5)
+        val purpose = PomodoroPurpose.fromName(prefs.getString("current_purpose", PomodoroPurpose.OTHERS.name))
+
         val savedTarget = prefs.getLong("target_end_time", 0L)
         val lastSaveElapsed = prefs.getLong("last_save_elapsed", 0L)
         val currentElapsed = SystemClock.elapsedRealtime()
+
+        // 시간 보정: 저장 시점과 현재 시점 사이의 차이 계산
+        val timePassedSinceSave = (currentElapsed - lastSaveElapsed).coerceAtLeast(0)
         
-        if (_isRunning.value && savedTarget > 0) {
-            // 보정: 만약 시스템이 꺼져있지 않았다면 (currentElapsed >= lastSaveElapsed)
-            // 남은 시간을 정확하게 다시 계산
-            if (currentElapsed >= lastSaveElapsed) {
-                targetEndTimeMillis = savedTarget
-                val remaining = ((targetEndTimeMillis - currentElapsed + 999) / 1000).coerceAtLeast(0)
-                _remainingSeconds.value = remaining
-                if (remaining > 0) {
-                    startTimerJob()
+        // 현재 세션의 남은 시간 계산
+        var targetEndTime = savedTarget
+        var remainingInCurrentSession = (targetEndTime - currentElapsed + 999) / 1000
+
+        // 만약 현재 세션이 이미 종료되었다면, 다음 세션으로 넘어가며 계산
+        while (remainingInCurrentSession <= 0) {
+            if (currentMode == TimerMode.FOCUS) {
+                currentCompleted++
+                if (currentCompleted >= total) {
+                    // 모든 세션 종료
+                    currentMode = TimerMode.NONE
+                    remainingInCurrentSession = 0
+                    break
                 } else {
-                    _isRunning.value = false
-                    saveState()
+                    // 휴식으로 전환
+                    currentMode = TimerMode.BREAK
+                    val breakSec = breakMin * 60L
+                    targetEndTime += (breakSec * 1000)
+                    remainingInCurrentSession = (targetEndTime - currentElapsed + 999) / 1000
                 }
+            } else if (currentMode == TimerMode.BREAK) {
+                // 다음 집중으로 전환
+                currentMode = TimerMode.FOCUS
+                val focusSec = focusMin * 60L
+                targetEndTime += (focusSec * 1000)
+                remainingInCurrentSession = (targetEndTime - currentElapsed + 999) / 1000
             } else {
-                // 재부팅된 경우 (elapsedRealtime이 리셋됨)
-                // 저장된 remainingSeconds를 기반으로 새로 시작
-                targetEndTimeMillis = currentElapsed + (_remainingSeconds.value * 1000)
-                if (_remainingSeconds.value > 0) {
-                    startTimerJob()
-                } else {
-                    _isRunning.value = false
-                    saveState()
-                }
+                break
             }
+        }
+
+        // 최종 상태 반영
+        _timerMode.value = currentMode
+        _focusDurationMinutes.value = focusMin
+        _breakDurationMinutes.value = breakMin
+        _totalSessions.value = total
+        _completedSessions.value = currentCompleted
+        _currentPurpose.value = purpose
+
+        if (currentMode != TimerMode.NONE && remainingInCurrentSession > 0) {
+            _remainingSeconds.value = remainingInCurrentSession.coerceAtLeast(0)
+            _isRunning.value = true
+            targetEndTimeMillis = targetEndTime
+            saveState() // 보정된 상태 저장
+            startTimerJob()
+        } else {
+            _remainingSeconds.value = 0
+            _isRunning.value = false
+            saveState()
         }
     }
 }

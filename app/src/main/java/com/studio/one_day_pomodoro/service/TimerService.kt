@@ -14,9 +14,11 @@ import com.studio.one_day_pomodoro.R
 import com.studio.one_day_pomodoro.domain.model.PomodoroPurpose
 import com.studio.one_day_pomodoro.domain.model.PomodoroSession
 import com.studio.one_day_pomodoro.domain.model.TimerMode
+import com.studio.one_day_pomodoro.domain.usecase.GetSettingsUseCase
 import com.studio.one_day_pomodoro.domain.usecase.SavePomodoroSessionUseCase
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
 import java.time.LocalDateTime
 import javax.inject.Inject
 
@@ -28,6 +30,9 @@ class TimerService : Service() {
     
     @Inject
     lateinit var savePomodoroSessionUseCase: SavePomodoroSessionUseCase
+
+    @Inject
+    lateinit var getSettingsUseCase: GetSettingsUseCase
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
@@ -49,10 +54,13 @@ class TimerService : Service() {
         try {
             notificationManager.cancel(2)
             
-            val seconds: Long
             if (intent?.action == "ACTION_TIMER_EXPIRED") {
-                handleTimerExpired(intent)
-                seconds = 0L
+                // 알람에 의해 호출된 경우. 
+                // Repository가 이미 loadState에서 만료를 감지하고 상태를 바꿨을 수 있음.
+                // 만약 여전히 실행 중이고 시간이 0에 가깝다면 수동으로 만료 트리거
+                if (timerRepository.isRunning.value && timerRepository.remainingSeconds.value <= 1) {
+                    handleTimerExpired(intent)
+                }
             } else {
                 val modeName = intent?.getStringExtra("TIMER_MODE") ?: timerRepository.timerMode.value.name
                 val mode = TimerMode.fromName(modeName)
@@ -65,10 +73,8 @@ class TimerService : Service() {
                 val purposeName = intent?.getStringExtra("PURPOSE") ?: timerRepository.currentPurpose.value.name
                 val purpose = PomodoroPurpose.fromName(purposeName)
 
-                // [FIX] 이미 타이머가 동작 중이고 모드가 같다면 리셋 방지 (가장 중요!)
-                if (timerRepository.isRunning.value && timerRepository.timerMode.value == mode) {
-                    seconds = timerRepository.remainingSeconds.value
-                } else {
+                // 이미 타이머가 동작 중이고 설정이 같다면 무시하여 리셋 방지
+                if (!(timerRepository.isRunning.value && timerRepository.timerMode.value == mode)) {
                     val totalSec = if (mode == TimerMode.FOCUS) durationMinutes * 60L else breakMinutes * 60L
                     timerRepository.start(
                         seconds = totalSec,
@@ -79,12 +85,17 @@ class TimerService : Service() {
                         completed = completedSessions,
                         purpose = purpose
                     )
-                    seconds = totalSec
                 }
             }
             
-            startForeground(notificationId, createNotification(seconds))
-            triggerVibration(VibrationPattern.START)
+            // 초기 알림 표시 및 서비스 활성화 유지
+            val currentSeconds = timerRepository.remainingSeconds.value
+            startForeground(notificationId, createNotification(currentSeconds))
+            
+            // 처음 시작하는 경우에만 진동 (알람 복구 시에는 진동 생략 가능)
+            if (intent?.action != "ACTION_TIMER_EXPIRED") {
+                triggerVibration(VibrationPattern.START)
+            }
             
         } catch (e: Exception) {
             e.printStackTrace()
@@ -116,6 +127,7 @@ class TimerService : Service() {
             
             observeTimerState()
             observeTimerMode()
+            observeSessionProgress()
         } catch (e: Exception) {
             e.printStackTrace()
             stopSelf()
@@ -185,11 +197,19 @@ class TimerService : Service() {
     
     private fun observeTimerMode() {
         serviceScope.launch {
-                val mode = timerRepository.timerMode.value
+            timerRepository.timerMode.collect { mode ->
                 val seconds = timerRepository.remainingSeconds.value
-                if (seconds > 0) {
-                    notificationManager.notify(notificationId, createNotification(seconds))
-                }
+                notificationManager.notify(notificationId, createNotification(seconds))
+            }
+        }
+    }
+
+    private fun observeSessionProgress() {
+        serviceScope.launch {
+            timerRepository.completedSessions.collect {
+                val seconds = timerRepository.remainingSeconds.value
+                notificationManager.notify(notificationId, createNotification(seconds))
+            }
         }
     }
     
@@ -297,6 +317,9 @@ class TimerService : Service() {
         )
 
         val formattedTime = formatTime(seconds)
+        val completed = timerRepository.completedSessions.value
+        val total = timerRepository.totalSessions.value
+        val contentText = "$formattedTime  (${completed + 1}/$total 세션)"
         
         val title = when (timerRepository.timerMode.value) {
             TimerMode.FOCUS -> "집중 중입니다"
@@ -306,7 +329,7 @@ class TimerService : Service() {
         
         return NotificationCompat.Builder(this, channelId)
             .setContentTitle(title)
-            .setContentText(formattedTime)
+            .setContentText(contentText)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pendingIntent)
             .setOnlyAlertOnce(true) 
@@ -321,22 +344,38 @@ class TimerService : Service() {
     }
     
     private fun triggerVibration(pattern: VibrationPattern) {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createWaveform(pattern.timings, -1))
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator.vibrate(pattern.timings, -1)
+        serviceScope.launch {
+            try {
+                val pomodoroSettings = getSettingsUseCase().first()
+                
+                if (!pomodoroSettings.vibrationEnabled) return@launch
+
+                val intensity = pomodoroSettings.vibrationIntensity
+                val amplitude = ((intensity * 254).toInt() + 1).coerceAtMost(255)
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val effect = VibrationEffect.createWaveform(pattern.timings, pattern.amplitudes(amplitude), -1)
+                    vibrator.vibrate(effect)
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(pattern.timings, -1)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
     }
     
     private enum class VibrationPattern(val timings: LongArray) {
         START(longArrayOf(0, 200)),
         COMPLETE(longArrayOf(0, 500)), 
-        FINAL_COMPLETE(longArrayOf(0, 200, 100, 200, 100, 400))
+        FINAL_COMPLETE(longArrayOf(0, 200, 100, 200, 100, 400));
+
+        fun amplitudes(amplitude: Int): IntArray {
+            return timings.mapIndexed { index, _ ->
+                if (index % 2 == 1) amplitude else 0
+            }.toIntArray()
+        }
     }
     
     private fun formatTime(seconds: Long): String {

@@ -80,6 +80,13 @@ fun SettingsScreen(
                     onDecrease = { viewModel.updateRepeatCount(-1) },
                     onIncrease = { viewModel.updateRepeatCount(1) }
                 )
+
+                VibrationSettingItem(
+                    enabled = s.vibrationEnabled,
+                    intensity = s.vibrationIntensity,
+                    onEnabledChange = { viewModel.toggleVibrationEnabled(it) },
+                    onIntensityChange = { viewModel.setVibrationIntensity(it) }
+                )
             } ?: Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
@@ -192,6 +199,81 @@ fun SettingItem(
             IconButton(onClick = onIncrease) {
                 Icon(Icons.Default.Add, contentDescription = null)
             }
+        }
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+}
+
+@Composable
+fun VibrationSettingItem(
+    enabled: Boolean,
+    intensity: Float,
+    onEnabledChange: (Boolean) -> Unit,
+    onIntensityChange: (Float) -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val vibrator = remember {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            val vm = context.getSystemService(android.content.Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+            vm.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as android.os.Vibrator
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = "진동 알림", style = MaterialTheme.typography.bodyLarge)
+            Switch(
+                checked = enabled,
+                onCheckedChange = onEnabledChange,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = MaterialTheme.colorScheme.primary,
+                    checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "진동 세기", 
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else Color.Gray,
+                modifier = Modifier.width(80.dp)
+            )
+            
+            Slider(
+                value = intensity,
+                onValueChange = onIntensityChange,
+                enabled = enabled,
+                modifier = Modifier.weight(1f),
+                onValueChangeFinished = {
+                    // 슬라이더 조절이 끝날 때 진동 피드백 제공
+                    if (enabled) {
+                        val amplitude = ((intensity * 254).toInt() + 1).coerceAtMost(255)
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                            vibrator.vibrate(android.os.VibrationEffect.createOneShot(200, amplitude))
+                        } else {
+                            @Suppress("DEPRECATION")
+                            vibrator.vibrate(200)
+                        }
+                    }
+                }
+            )
         }
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)

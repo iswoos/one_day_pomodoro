@@ -19,7 +19,7 @@ import com.studio.one_day_pomodoro.presentation.navigation.Screen
 import com.studio.one_day_pomodoro.presentation.ui.components.ads.BannerAdView
 import com.studio.one_day_pomodoro.presentation.ui.theme.PomoTheme
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.MutableStateFlow
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -28,37 +28,38 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var timerRepository: TimerStateRepository
 
+    private val _currentIntent = MutableStateFlow<android.content.Intent?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        _currentIntent.value = intent
         setContent {
             PomoTheme {
                 val navController = rememberNavController()
+                val isRunning by timerRepository.isRunning.collectAsState(initial = false)
+                val mode by timerRepository.timerMode.collectAsState(initial = TimerMode.NONE)
+                val currentIntentState by _currentIntent.collectAsState()
+                
                 var startDestination by remember { mutableStateOf<String?>(null) }
 
-                LaunchedEffect(Unit) {
-                    val isRunning = timerRepository.isRunning.first()
-                    val mode = timerRepository.timerMode.first()
-                    
-                    // 1. Check intent from notification
-                    val intent = (this@MainActivity as? android.app.Activity)?.intent
+                LaunchedEffect(isRunning, mode, currentIntentState) {
+                    val intent = currentIntentState
                     val finishedModeName = intent?.getStringExtra("TIMER_FINISHED_MODE")
                     
-                    // 2. Check repository state for 'Just Finished' (Process Alive case)
-                    val repoSeconds = timerRepository.remainingSeconds.first()
-                    val repoMode = timerRepository.timerMode.first()
+                    val repoSeconds = timerRepository.remainingSeconds.value
+                    val repoMode = timerRepository.timerMode.value
 
-                    val focusDuration = timerRepository.focusDurationMinutes.first()
-                    val completed = timerRepository.completedSessions.first()
-                    val total = timerRepository.totalSessions.first()
-                    val purpose = timerRepository.currentPurpose.first()
+                    val focusDuration = timerRepository.focusDurationMinutes.value
+                    val completed = timerRepository.completedSessions.value
+                    val total = timerRepository.totalSessions.value
+                    val purpose = timerRepository.currentPurpose.value
 
-                    startDestination = if (isRunning) {
+                    val destination = if (isRunning) {
                         when (mode) {
                             TimerMode.BREAK -> Screen.Break.createRoute(focusDuration, completed, total)
                             else -> Screen.Timer.createRoute(purpose)
                         }
                     } else {
-                        // Not running. Check if we just finished.
                         val isFocusFinished = (finishedModeName == TimerMode.FOCUS.name) || 
                                               (repoSeconds == 0L && repoMode == TimerMode.FOCUS)
                         
@@ -66,13 +67,27 @@ class MainActivity : ComponentActivity() {
                                               (repoSeconds == 0L && repoMode == TimerMode.BREAK)
                         
                         if (isFocusFinished) {
-                             // Focus finished -> Go to Break
                              Screen.Break.createRoute(focusDuration, completed, total)
                         } else if (isBreakFinished) {
-                             // Break finished -> Go to Timer
                              Screen.Timer.createRoute(purpose)
                         } else {
                              Screen.Home.route
+                        }
+                    }
+                    
+                    if (startDestination == null) {
+                        startDestination = destination
+                    } else {
+                        // Guard Logic: 실행 중인데 엉뚱한 화면일 경우 강제 복귀
+                        val currentRoute = navController.currentBackStackEntry?.destination?.route
+                        if (isRunning && currentRoute != null) {
+                            val targetRoutePart = if (mode == TimerMode.BREAK) "break" else "timer"
+                            if (!currentRoute.contains(targetRoutePart, ignoreCase = true)) {
+                                navController.navigate(destination) {
+                                    popUpTo(Screen.Home.route) { inclusive = false }
+                                    launchSingleTop = true
+                                }
+                            }
                         }
                     }
                 }
@@ -92,5 +107,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        _currentIntent.value = intent
     }
 }
