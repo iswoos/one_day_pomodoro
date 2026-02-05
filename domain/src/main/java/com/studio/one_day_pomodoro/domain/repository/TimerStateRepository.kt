@@ -14,6 +14,7 @@ interface TimerStateRepository {
     val totalSessions: StateFlow<Int>
     val completedSessions: StateFlow<Int>
     val currentPurpose: StateFlow<com.studio.one_day_pomodoro.domain.model.PomodoroPurpose>
+    val isInitialized: StateFlow<Boolean>
     
     fun start(
         seconds: Long, 
@@ -28,4 +29,5 @@ interface TimerStateRepository {
     fun pause()
     fun resume()
     fun stop()
+    fun clearExpiredState()
 }

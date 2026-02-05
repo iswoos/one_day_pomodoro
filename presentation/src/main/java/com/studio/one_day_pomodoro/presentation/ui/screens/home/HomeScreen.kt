@@ -43,13 +43,9 @@ fun HomeScreen(
     val context = LocalContext.current
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
     
-    // Smart cleanup: detect orphaned timers after process death
+    // 앱 시작 시 날짜 갱신
     LaunchedEffect(Unit) {
         viewModel.refreshDate()
-        delay(300) 
-        if (viewModel.isTimerRunning()) {
-            viewModel.cleanupOrphanedTimer()
-        }
     }
     // --- Permission Handlers ---
     

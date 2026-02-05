@@ -24,6 +24,7 @@ import com.studio.one_day_pomodoro.presentation.util.findActivity
 @Composable
 fun PomoNavHost(
     navController: NavHostController,
+    timerRepository: com.studio.one_day_pomodoro.domain.repository.TimerStateRepository,
     modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier,
     startDestination: String = Screen.Home.route
 ) {
@@ -121,7 +122,9 @@ fun PomoNavHost(
                 purpose = purpose,
                 minutes = minutes,
                 onConfirmClick = {
-                    // 확인 버튼 클릭 시 이미 로드된 광고 표시 시도
+                    // 확인 시 이전 세션 상태 완전히 리셋 (재시작 시 중복 진입 방지)
+                    timerRepository.clearExpiredState()
+                    
                     activity?.let {
                         InterstitialAdHelper.showAd(it) {
                             navController.navigate(Screen.Home.route) {

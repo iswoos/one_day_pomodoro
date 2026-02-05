@@ -38,11 +38,14 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 val isRunning by timerRepository.isRunning.collectAsState(initial = false)
                 val mode by timerRepository.timerMode.collectAsState(initial = TimerMode.NONE)
+                val isInitialized by timerRepository.isInitialized.collectAsState(initial = false)
                 val currentIntentState by _currentIntent.collectAsState()
                 
                 var startDestination by remember { mutableStateOf<String?>(null) }
 
-                LaunchedEffect(isRunning, mode, currentIntentState) {
+                LaunchedEffect(isInitialized, isRunning, mode, currentIntentState) {
+                    if (!isInitialized) return@LaunchedEffect
+                    
                     val intent = currentIntentState
                     val finishedModeName = intent?.getStringExtra("TIMER_FINISHED_MODE")
                     
@@ -104,6 +107,7 @@ class MainActivity : ComponentActivity() {
                     ) { paddingValues ->
                         PomoNavHost(
                             navController = navController,
+                            timerRepository = timerRepository,
                             startDestination = startDestination!!,
                             modifier = Modifier.padding(paddingValues)
                         )

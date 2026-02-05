@@ -47,6 +47,9 @@ class TimerStateRepositoryImpl @Inject constructor(
     private val _currentPurpose = MutableStateFlow(PomodoroPurpose.OTHERS)
     override val currentPurpose: StateFlow<PomodoroPurpose> = _currentPurpose.asStateFlow()
 
+    private val _isInitialized = MutableStateFlow(false)
+    override val isInitialized: StateFlow<Boolean> = _isInitialized.asStateFlow()
+
     private val repositoryScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var timerJob: Job? = null
     private var targetEndTimeMillis: Long = 0L
@@ -107,6 +110,21 @@ class TimerStateRepositoryImpl @Inject constructor(
         saveState() // 즉시 저장
     }
 
+    override fun clearExpiredState() {
+        _completedSessions.value = 0
+        _remainingSeconds.value = 0
+        _timerMode.value = TimerMode.NONE
+        _isRunning.value = false
+        // preferences에서도 물리적으로 초기화
+        prefs.edit().apply {
+            putInt("completed_sessions", 0)
+            putString("timer_mode", TimerMode.NONE.name)
+            putBoolean("is_running", false)
+            putLong("remaining_seconds", 0L)
+            apply()
+        }
+    }
+
     private fun startTimerJob() {
         timerJob?.cancel()
         timerJob = repositoryScope.launch {
@@ -161,6 +179,7 @@ class TimerStateRepositoryImpl @Inject constructor(
             _totalSessions.value = prefs.getInt("total_sessions", 1)
             _completedSessions.value = prefs.getInt("completed_sessions", 0)
             _currentPurpose.value = PomodoroPurpose.fromName(prefs.getString("current_purpose", PomodoroPurpose.OTHERS.name))
+            _isInitialized.value = true
             return
         }
 
@@ -230,5 +249,6 @@ class TimerStateRepositoryImpl @Inject constructor(
             _isRunning.value = false
             saveState()
         }
+        _isInitialized.value = true
     }
 }
