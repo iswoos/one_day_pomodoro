@@ -43,40 +43,39 @@ class MainActivity : ComponentActivity() {
                 
                 var startDestination by remember { mutableStateOf<String?>(null) }
 
+                // 초기 경로 결정 및 상태 변화 감지 (Guard Logic)
                 LaunchedEffect(isInitialized, isRunning, mode, currentIntentState) {
                     if (!isInitialized) return@LaunchedEffect
                     
                     val intent = currentIntentState
                     val finishedModeName = intent?.getStringExtra("TIMER_FINISHED_MODE")
                     
-                    val repoSeconds = timerRepository.remainingSeconds.value
                     val repoMode = timerRepository.timerMode.value
-
-                    val focusDuration = timerRepository.focusDurationMinutes.value
+                    val repoSeconds = timerRepository.remainingSeconds.value
                     val completed = timerRepository.completedSessions.value
                     val total = timerRepository.totalSessions.value
+                    val focusDuration = timerRepository.focusDurationMinutes.value
                     val purpose = timerRepository.currentPurpose.value
 
-                    val destination = if (isRunning) {
+                    // 현재 상태에 기반한 이상적인 목적지 계산
+                    val targetDestination = if (isRunning) {
                         when (mode) {
                             TimerMode.BREAK -> Screen.Break.createRoute(focusDuration, completed, total)
                             else -> Screen.Timer.createRoute(purpose)
                         }
                     } else {
                         val isLast = completed > 0 && completed >= total
-                        // 모드가 이미 NONE으로 바뀌었을 수 있으므로, 세션 완료 수로도 판단합니다.
+                        
                         val isFocusFinished = (finishedModeName == TimerMode.FOCUS.name) || 
-                                              (repoSeconds == 0L && (repoMode == TimerMode.FOCUS || (isLast && repoMode == TimerMode.NONE)))
+                                              (repoSeconds == 0L && repoMode == TimerMode.FOCUS) ||
+                                              (repoSeconds == 0L && isLast && repoMode == TimerMode.NONE)
                         
                         val isBreakFinished = (finishedModeName == TimerMode.BREAK.name) || 
                                               (repoSeconds == 0L && repoMode == TimerMode.BREAK)
                         
                         if (isFocusFinished) {
-                             if (isLast) {
-                                 Screen.Summary.createRoute(purpose, completed * focusDuration)
-                             } else {
-                                 Screen.Break.createRoute(focusDuration, completed, total)
-                             }
+                             if (isLast) Screen.Summary.createRoute(purpose, completed * focusDuration)
+                             else Screen.Break.createRoute(focusDuration, completed, total)
                         } else if (isBreakFinished) {
                              Screen.Timer.createRoute(purpose)
                         } else {
@@ -84,19 +83,37 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     
+                    // 1. 초기 목적지 설정
                     if (startDestination == null) {
-                        startDestination = destination
-                    } else {
-                        // Guard Logic: 실행 중인데 엉뚱한 화면일 경우 강제 복귀
-                        val currentRoute = navController.currentBackStackEntry?.destination?.route
-                        if (isRunning && currentRoute != null) {
-                            val targetRoutePart = if (mode == TimerMode.BREAK) "break" else "timer"
-                            if (!currentRoute.contains(targetRoutePart, ignoreCase = true)) {
-                                navController.navigate(destination) {
-                                    popUpTo(Screen.Home.route) { inclusive = false }
+                        startDestination = targetDestination
+                    } 
+                    
+                    // 2. 가드 로직: 현재 화면이 상태와 맞지 않으면 강제 이동
+                    // (예: 타이머가 멈췄는데 여전히 타이머 화면인 경우)
+                    val currentRoute = navController.currentBackStackEntry?.destination?.route
+                    if (currentRoute != null) {
+                        val isOnTimerOrBreak = currentRoute.contains("timer", true) || currentRoute.contains("break", true)
+                        val isActuallyRunning = isRunning
+                        
+                        // 상태 불일치 조건: 
+                        // - 실행 중인데 홈/세팅 등에 있음 (단, 의도적 이동 제외 위해 단순 체크)
+                        // - 실행 중이 아닌데 타이머/휴식 화면에 멈춰 있음
+                        if (isOnTimerOrBreak && !isActuallyRunning) {
+                            // 타이머가 멈췄는데 화면은 그대로인 경우 -> 홈이나 요약으로 강제 이동
+                            if (currentRoute != targetDestination) {
+                                navController.navigate(targetDestination) {
+                                    popUpTo(navController.graph.id) { inclusive = true }
                                     launchSingleTop = true
                                 }
                             }
+                        } else if (intent?.hasExtra("TIMER_FINISHED_MODE") == true) {
+                            // 명시적인 종료 알림 클릭 시 강제 이동
+                            navController.navigate(targetDestination) {
+                                popUpTo(navController.graph.id) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                            // 처리된 인텐트는 초기화하여 중복 실행 방지
+                            _currentIntent.value = null
                         }
                     }
                 }
@@ -113,7 +130,15 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 } else {
-                     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+                     // 로딩 대기 화면 (데이터 로드 전까지 빈 화면 방지 + 로딩 인디케이터)
+                     Box(
+                         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+                         contentAlignment = androidx.compose.ui.Alignment.Center
+                     ) {
+                         androidx.compose.material3.CircularProgressIndicator(
+                             color = MaterialTheme.colorScheme.primary
+                         )
+                     }
                 }
             }
         }

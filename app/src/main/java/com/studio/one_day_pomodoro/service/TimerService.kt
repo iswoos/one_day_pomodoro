@@ -353,7 +353,7 @@ class TimerService : Service() {
         val formattedTime = formatTime(seconds)
         val completed = timerRepository.completedSessions.value
         val total = timerRepository.totalSessions.value
-        val contentText = "$formattedTime  (${completed + 1}/$total 세션)"
+        val contentText = "$formattedTime  (완료된 세션: $completed/$total)"
         
         val title = when (timerRepository.timerMode.value) {
             TimerMode.FOCUS -> "집중 중입니다"

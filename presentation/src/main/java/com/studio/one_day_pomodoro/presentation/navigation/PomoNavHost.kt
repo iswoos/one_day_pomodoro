@@ -68,12 +68,20 @@ fun PomoNavHost(
                 onBreakStart = { minutes, completedSessions, totalSessions ->
                     // 휴식 시작 시 전면 광고 로드 및 세션 정보 전달
                     activity?.let { InterstitialAdHelper.loadAd(it) }
-                    navController.navigate(Screen.Break.createRoute(minutes, completedSessions, totalSessions))
+                    navController.navigate(Screen.Break.createRoute(minutes, completedSessions, totalSessions)) {
+                         // 뒤로가기 시 타이머 화면 중복 방지 (필요 시)
+                    }
                 },
                 onSummaryClick = { p, m ->
                     navController.navigate(Screen.Summary.createRoute(p, m))
                 },
-                onStopClick = { navController.popBackStack(Screen.Home.route, false) }
+                onStopClick = { 
+                    // 확실하게 홈으로 이동 (백스택 전체 비우기)
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(navController.graph.id) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
             )
         }
         
@@ -97,8 +105,12 @@ fun PomoNavHost(
                     // 휴식 종료 시 단순히 이전 화면(Timer)으로 복귀
                     navController.popBackStack()
                 },
-                onStopClick = {
-                    navController.popBackStack(Screen.Home.route, false)
+                onStopClick = { 
+                    // 확실하게 홈으로 이동 (백스택 전체 비우기)
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(navController.graph.id) { inclusive = true }
+                        launchSingleTop = true
+                    }
                 }
             )
         }
@@ -113,7 +125,7 @@ fun PomoNavHost(
             val purpose = PomodoroPurpose.fromName(backStackEntry.arguments?.getString("purpose"))
             val minutes = backStackEntry.arguments?.getInt("minutes") ?: 0
             
-            // 요약 화면 진입 시에도 보험용으로 로드 시도 (InterstitialAdHelper 내부에서 중복 체크함)
+            // 요약 화면 진입 시에도 보험용으로 로드 시도
             LaunchedEffect(Unit) {
                 activity?.let { InterstitialAdHelper.loadAd(it) }
             }
@@ -122,7 +134,7 @@ fun PomoNavHost(
                 purpose = purpose,
                 minutes = minutes,
                 onConfirmClick = {
-                    // 확인 시 이전 세션 상태 완전히 리셋 (재시작 시 중복 진입 방지)
+                    // 확인 시 이전 세션 상태 완전히 리셋
                     timerRepository.clearExpiredState()
                     
                     activity?.let {

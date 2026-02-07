@@ -30,7 +30,7 @@ fun SettingsScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = "집중 설정",
+                        text = "설정",
                         style = MaterialTheme.typography.headlineLarge,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.primary
@@ -111,7 +111,7 @@ fun SettingsScreen(
                     .height(56.dp),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
             ) {
-                Text(text = "저장 및 완료", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(text = "저장", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
