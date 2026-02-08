@@ -66,18 +66,26 @@ class MainActivity : ComponentActivity() {
                     } else {
                         val isLast = completed > 0 && completed >= total
                         
+                        // 명시적 종료 상태 확인
                         val isFocusFinished = (finishedModeName == TimerMode.FOCUS.name) || 
                                               (repoSeconds == 0L && repoMode == TimerMode.FOCUS) ||
                                               (repoSeconds == 0L && isLast && repoMode == TimerMode.NONE)
                         
                         val isBreakFinished = (finishedModeName == TimerMode.BREAK.name) || 
                                               (repoSeconds == 0L && repoMode == TimerMode.BREAK)
+
+                        // 일시정지 상태 확인 (실행 중은 아닌데, 모드는 있고 시간은 남은 경우)
+                        val isPaused = (repoMode != TimerMode.NONE && repoSeconds > 0L)
                         
                         if (isFocusFinished) {
                              if (isLast) Screen.Summary.createRoute(purpose, completed * focusDuration)
                              else Screen.Break.createRoute(focusDuration, completed, total)
                         } else if (isBreakFinished) {
                              Screen.Timer.createRoute(purpose)
+                        } else if (isPaused) {
+                             // 일시정지 상태라면 해당 모드의 화면으로 복구
+                             if (repoMode == TimerMode.BREAK) Screen.Break.createRoute(focusDuration, completed, total)
+                             else Screen.Timer.createRoute(purpose)
                         } else {
                              Screen.Home.route
                         }
@@ -89,31 +97,32 @@ class MainActivity : ComponentActivity() {
                     } 
                     
                     // 2. 가드 로직: 현재 화면이 상태와 맞지 않으면 강제 이동
-                    // (예: 타이머가 멈췄는데 여전히 타이머 화면인 경우)
                     val currentRoute = navController.currentBackStackEntry?.destination?.route
                     if (currentRoute != null) {
-                        val isOnTimerOrBreak = currentRoute.contains("timer", true) || currentRoute.contains("break", true)
-                        val isActuallyRunning = isRunning
+                        // 기본 경로(base route) 비교를 위해 helper 사용
+                        fun isSameBaseRoute(r1: String, r2: String): Boolean {
+                            return r1.substringBefore("/") == r2.substringBefore("/")
+                        }
+
+                        val isActuallyInSession = isRunning || (repoMode != TimerMode.NONE && repoSeconds > 0L)
+                        val isExplicitlyFinished = (intent?.hasExtra("TIMER_FINISHED_MODE") == true)
                         
-                        // 상태 불일치 조건: 
-                        // - 실행 중인데 홈/세팅 등에 있음 (단, 의도적 이동 제외 위해 단순 체크)
-                        // - 실행 중이 아닌데 타이머/휴식 화면에 멈춰 있음
-                        if (isOnTimerOrBreak && !isActuallyRunning) {
-                            // 타이머가 멈췄는데 화면은 그대로인 경우 -> 홈이나 요약으로 강제 이동
+                        // 현재 화면이 타겟과 다른 유형이거나, 세션 중인데 세션 외부 화면(Home 등)에 있는 경우 강제 이동
+                        val isBaseRouteDifferent = !isSameBaseRoute(currentRoute, targetDestination)
+                        val isOutsideButShouldBeIn = isActuallyInSession && !currentRoute.contains("timer", true) && !currentRoute.contains("break", true)
+
+                        if (isExplicitlyFinished || isOutsideButShouldBeIn || (isActuallyInSession && isBaseRouteDifferent)) {
+                            // 현재 경로와 타겟 경로가 정말로 다른지 최종 확인 후 이동
                             if (currentRoute != targetDestination) {
                                 navController.navigate(targetDestination) {
                                     popUpTo(navController.graph.id) { inclusive = true }
                                     launchSingleTop = true
                                 }
                             }
-                        } else if (intent?.hasExtra("TIMER_FINISHED_MODE") == true) {
-                            // 명시적인 종료 알림 클릭 시 강제 이동
-                            navController.navigate(targetDestination) {
-                                popUpTo(navController.graph.id) { inclusive = true }
-                                launchSingleTop = true
+                            
+                            if (isExplicitlyFinished) {
+                                _currentIntent.value = null
                             }
-                            // 처리된 인텐트는 초기화하여 중복 실행 방지
-                            _currentIntent.value = null
                         }
                     }
                 }

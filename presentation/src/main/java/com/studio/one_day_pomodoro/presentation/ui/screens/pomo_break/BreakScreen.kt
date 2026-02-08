@@ -44,18 +44,6 @@ fun BreakScreen(
 
     val timerMode by viewModel.timerMode.collectAsState()
 
-    LaunchedEffect(timerMode) {
-        if (timerMode == com.studio.one_day_pomodoro.domain.model.TimerMode.FOCUS) {
-            onBreakEnd()
-        }
-    }
-
-    LaunchedEffect(remainingSeconds) {
-        if (remainingSeconds <= 0 && breakDurationMin > 0) {
-            onBreakEnd()
-        }
-    }
-
     Scaffold(
     ) { paddingValues ->
         Column(

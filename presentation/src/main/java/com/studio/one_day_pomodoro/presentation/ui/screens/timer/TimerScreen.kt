@@ -30,8 +30,6 @@ import com.studio.one_day_pomodoro.domain.model.PomodoroPurpose
 @Composable
 fun TimerScreen(
     purpose: PomodoroPurpose,
-    onBreakStart: (focusMinutes: Int, completedSessions: Int, totalSessions: Int) -> Unit,
-    onSummaryClick: (PomodoroPurpose, Int) -> Unit,
     onStopClick: () -> Unit,
     viewModel: TimerViewModel = hiltViewModel()
 ) {
@@ -52,28 +50,8 @@ fun TimerScreen(
         viewModel.startTimer(purpose)
     }
 
-    // State-based navigation check (Robustness for background transitions)
-    LaunchedEffect(timerMode) {
-        if (timerMode == com.studio.one_day_pomodoro.domain.model.TimerMode.BREAK) {
-            val total = viewModel.totalSessions.value
-            val completed = viewModel.completedSessions.value
-            val duration = viewModel.focusDurationMinutes.value
-            onBreakStart(duration, completed, total)
-        }
-    }
 
-    LaunchedEffect(Unit) {
-        viewModel.timerEvent.collect { event ->
-            when (event) {
-                is TimerViewModel.TimerEvent.GoToBreak -> {
-                    onBreakStart(event.minutes, viewModel.completedSessions.value, viewModel.totalSessions.value)
-                }
-                is TimerViewModel.TimerEvent.Finished -> {
-                    onSummaryClick(event.purpose, event.minutes)
-                }
-            }
-        }
-    }
+
 
     Scaffold(
     ) { paddingValues ->
