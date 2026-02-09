@@ -65,21 +65,20 @@ fun PomoNavHost(
             
             TimerScreen(
                 purpose = purpose,
-                onBreakStart = { minutes, completedSessions, totalSessions ->
-                    // 휴식 시작 시 전면 광고 로드 및 세션 정보 전달
-                    activity?.let { InterstitialAdHelper.loadAd(it) }
-                    navController.navigate(Screen.Break.createRoute(minutes, completedSessions, totalSessions)) {
-                         // 뒤로가기 시 타이머 화면 중복 방지 (필요 시)
-                    }
-                },
-                onSummaryClick = { p, m ->
-                    navController.navigate(Screen.Summary.createRoute(p, m))
-                },
                 onStopClick = { 
-                    // 확실하게 홈으로 이동 (백스택 전체 비우기)
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(navController.graph.id) { inclusive = true }
-                        launchSingleTop = true
+                    // 확실하게 홈으로 이동 전 광고 노출
+                    activity?.let {
+                        InterstitialAdHelper.showAd(it) {
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(navController.graph.id) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    } ?: run {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(navController.graph.id) { inclusive = true }
+                            launchSingleTop = true
+                        }
                     }
                 }
             )
@@ -101,15 +100,20 @@ fun PomoNavHost(
                 focusMinutes = focusMinutes,
                 completedSessions = completedSessions,
                 totalSessions = totalSessions,
-                onBreakEnd = {
-                    // 휴식 종료 시 단순히 이전 화면(Timer)으로 복귀
-                    navController.popBackStack()
-                },
                 onStopClick = { 
-                    // 확실하게 홈으로 이동 (백스택 전체 비우기)
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(navController.graph.id) { inclusive = true }
-                        launchSingleTop = true
+                    // 확실하게 홈으로 이동 전 광고 노출
+                    activity?.let {
+                        InterstitialAdHelper.showAd(it) {
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(navController.graph.id) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    } ?: run {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(navController.graph.id) { inclusive = true }
+                            launchSingleTop = true
+                        }
                     }
                 }
             )

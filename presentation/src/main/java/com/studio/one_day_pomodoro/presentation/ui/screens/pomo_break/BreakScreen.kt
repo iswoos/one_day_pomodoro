@@ -24,10 +24,25 @@ fun BreakScreen(
     focusMinutes: Int,
     completedSessions: Int,
     totalSessions: Int,
-    onBreakEnd: () -> Unit,
     onStopClick: () -> Unit,
     viewModel: BreakViewModel = hiltViewModel()
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val activity = androidx.compose.runtime.remember(context) { 
+        context.let { 
+            var c = it
+            while (c is android.content.ContextWrapper) {
+                if (c is android.app.Activity) break
+                c = c.baseContext
+            }
+            c as? android.app.Activity
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        activity?.let { com.studio.one_day_pomodoro.presentation.ui.components.ads.InterstitialAdHelper.loadAd(it) }
+    }
+
     val remainingSeconds by viewModel.remainingSeconds.collectAsState()
     val breakDurationMin by viewModel.breakDurationMinutes.collectAsState()
     val totalBreakSeconds = breakDurationMin * 60L

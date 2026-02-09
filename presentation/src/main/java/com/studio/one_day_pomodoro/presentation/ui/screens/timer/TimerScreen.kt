@@ -33,10 +33,25 @@ fun TimerScreen(
     onStopClick: () -> Unit,
     viewModel: TimerViewModel = hiltViewModel()
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val activity = androidx.compose.runtime.remember(context) { 
+        context.let { 
+            var c = it
+            while (c is android.content.ContextWrapper) {
+                if (c is android.app.Activity) break
+                c = c.baseContext
+            }
+            c as? android.app.Activity
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        activity?.let { com.studio.one_day_pomodoro.presentation.ui.components.ads.InterstitialAdHelper.loadAd(it) }
+    }
+
     val remainingTime by viewModel.remainingTimeSeconds.collectAsState()
     val isRunning by viewModel.isTimerRunning.collectAsState()
     val timerMode by viewModel.timerMode.collectAsState()
-    val context = LocalContext.current
     
     // Handle system back button
     BackHandler {
