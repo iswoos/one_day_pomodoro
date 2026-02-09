@@ -6,6 +6,9 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+import java.util.Properties
+import java.io.FileInputStream
+
 android {
     namespace = "com.studio.one_day_pomodoro"
     compileSdk = 35
@@ -14,7 +17,7 @@ android {
         applicationId = "com.studio.one_day_pomodoro"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
+        versionCode = 39
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -26,10 +29,10 @@ android {
             if (keystoreFile.exists()) {
                 storeFile = keystoreFile
                 
-                val properties = java.util.Properties()
+                val properties = Properties()
                 val localPropertiesFile = rootProject.file("local.properties")
                 if (localPropertiesFile.exists()) {
-                    properties.load(java.io.FileInputStream(localPropertiesFile))
+                    properties.load(FileInputStream(localPropertiesFile))
                     
                     storePassword = properties.getProperty("storePassword")
                     keyAlias = properties.getProperty("keyAlias")

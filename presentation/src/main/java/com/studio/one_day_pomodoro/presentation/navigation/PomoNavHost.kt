@@ -24,14 +24,16 @@ import com.studio.one_day_pomodoro.presentation.util.findActivity
 @Composable
 fun PomoNavHost(
     navController: NavHostController,
-    modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier
+    timerRepository: com.studio.one_day_pomodoro.domain.repository.TimerStateRepository,
+    modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier,
+    startDestination: String = Screen.Home.route
 ) {
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
 
     NavHost(
         navController = navController,
-        startDestination = Screen.Home.route,
+        startDestination = startDestination,
         modifier = modifier
     ) {
         composable(Screen.Home.route) {
@@ -59,19 +61,26 @@ fun PomoNavHost(
             arguments = listOf(navArgument("purpose") { type = NavType.StringType })
         ) { backStackEntry ->
             val purposeName = backStackEntry.arguments?.getString("purpose")
-            val purpose = PomodoroPurpose.valueOf(purposeName ?: PomodoroPurpose.OTHERS.name)
+            val purpose = PomodoroPurpose.fromName(purposeName)
             
             TimerScreen(
                 purpose = purpose,
-                onBreakStart = { minutes, completedSessions, totalSessions ->
-                    // 휴식 시작 시 전면 광고 로드 및 세션 정보 전달
-                    activity?.let { InterstitialAdHelper.loadAd(it) }
-                    navController.navigate(Screen.Break.createRoute(minutes, completedSessions, totalSessions))
-                },
-                onSummaryClick = { p, m ->
-                    navController.navigate(Screen.Summary.createRoute(p, m))
-                },
-                onStopClick = { navController.popBackStack(Screen.Home.route, false) }
+                onStopClick = { 
+                    // 확실하게 홈으로 이동 전 광고 노출
+                    activity?.let {
+                        InterstitialAdHelper.showAd(it) {
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(navController.graph.id) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    } ?: run {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(navController.graph.id) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                }
             )
         }
         
@@ -91,12 +100,21 @@ fun PomoNavHost(
                 focusMinutes = focusMinutes,
                 completedSessions = completedSessions,
                 totalSessions = totalSessions,
-                onBreakEnd = {
-                    // 휴식 종료 시 단순히 이전 화면(Timer)으로 복귀
-                    navController.popBackStack()
-                },
-                onStopClick = {
-                    navController.popBackStack(Screen.Home.route, false)
+                onStopClick = { 
+                    // 확실하게 홈으로 이동 전 광고 노출
+                    activity?.let {
+                        InterstitialAdHelper.showAd(it) {
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(navController.graph.id) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    } ?: run {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(navController.graph.id) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
                 }
             )
         }
@@ -108,10 +126,10 @@ fun PomoNavHost(
                 navArgument("minutes") { type = NavType.IntType }
             )
         ) { backStackEntry ->
-            val purpose = PomodoroPurpose.valueOf(backStackEntry.arguments?.getString("purpose") ?: "OTHERS")
+            val purpose = PomodoroPurpose.fromName(backStackEntry.arguments?.getString("purpose"))
             val minutes = backStackEntry.arguments?.getInt("minutes") ?: 0
             
-            // 요약 화면 진입 시에도 보험용으로 로드 시도 (InterstitialAdHelper 내부에서 중복 체크함)
+            // 요약 화면 진입 시에도 보험용으로 로드 시도
             LaunchedEffect(Unit) {
                 activity?.let { InterstitialAdHelper.loadAd(it) }
             }
@@ -120,7 +138,9 @@ fun PomoNavHost(
                 purpose = purpose,
                 minutes = minutes,
                 onConfirmClick = {
-                    // 확인 버튼 클릭 시 이미 로드된 광고 표시 시도
+                    // 확인 시 이전 세션 상태 완전히 리셋
+                    timerRepository.clearExpiredState()
+                    
                     activity?.let {
                         InterstitialAdHelper.showAd(it) {
                             navController.navigate(Screen.Home.route) {

@@ -10,5 +10,7 @@ package com.studio.one_day_pomodoro.domain.model
 data class PomodoroSettings(
     val focusMinutes: Int = 25,
     val breakMinutes: Int = 5,
-    val repeatCount: Int = 1
+    val repeatCount: Int = 1,
+    val vibrationEnabled: Boolean = true,
+    val vibrationIntensity: Float = 0.5f
 )

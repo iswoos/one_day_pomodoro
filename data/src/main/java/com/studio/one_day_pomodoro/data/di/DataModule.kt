@@ -40,4 +40,12 @@ object DataModule {
     ): SettingsDataStore {
         return SettingsDataStore(context)
     }
+
+    @Provides
+    @Singleton
+    fun provideSharedPreferences(
+        @ApplicationContext context: Context
+    ): android.content.SharedPreferences {
+        return context.getSharedPreferences("pomo_timer_prefs", Context.MODE_PRIVATE)
+    }
 }

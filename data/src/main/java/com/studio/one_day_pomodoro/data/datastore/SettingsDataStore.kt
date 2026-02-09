@@ -17,6 +17,8 @@ class SettingsDataStore(private val context: Context) {
     private val focusMinutesKey = intPreferencesKey("focus_minutes")
     private val breakMinutesKey = intPreferencesKey("break_minutes")
     private val repeatCountKey = intPreferencesKey("repeat_count")
+    private val vibrationEnabledKey = androidx.datastore.preferences.core.booleanPreferencesKey("vibration_enabled")
+    private val vibrationIntensityKey = androidx.datastore.preferences.core.floatPreferencesKey("vibration_intensity")
 
     val settingsFlow: Flow<PomodoroSettings> = context.dataStore.data
         .catch { exception ->
@@ -30,7 +32,9 @@ class SettingsDataStore(private val context: Context) {
             PomodoroSettings(
                 focusMinutes = preferences[focusMinutesKey] ?: 25,
                 breakMinutes = preferences[breakMinutesKey] ?: 5,
-                repeatCount = preferences[repeatCountKey] ?: 0
+                repeatCount = preferences[repeatCountKey] ?: 1,
+                vibrationEnabled = preferences[vibrationEnabledKey] ?: true,
+                vibrationIntensity = preferences[vibrationIntensityKey] ?: 0.5f
             )
         }
 
@@ -39,6 +43,8 @@ class SettingsDataStore(private val context: Context) {
             preferences[focusMinutesKey] = settings.focusMinutes
             preferences[breakMinutesKey] = settings.breakMinutes
             preferences[repeatCountKey] = settings.repeatCount
+            preferences[vibrationEnabledKey] = settings.vibrationEnabled
+            preferences[vibrationIntensityKey] = settings.vibrationIntensity
         }
     }
 }

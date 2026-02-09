@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,7 +30,7 @@ fun SettingsScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = "집중 설정",
+                        text = "설정",
                         style = MaterialTheme.typography.headlineLarge,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.primary
@@ -79,6 +80,13 @@ fun SettingsScreen(
                     onDecrease = { viewModel.updateRepeatCount(-1) },
                     onIncrease = { viewModel.updateRepeatCount(1) }
                 )
+
+                VibrationSettingItem(
+                    enabled = s.vibrationEnabled,
+                    intensity = s.vibrationIntensity,
+                    onEnabledChange = { viewModel.toggleVibrationEnabled(it) },
+                    onIntensityChange = { viewModel.setVibrationIntensity(it) }
+                )
             } ?: Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
@@ -94,13 +102,16 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.weight(1f))
 
             Button(
-                onClick = onSaveClick,
+                onClick = {
+                    viewModel.saveSettings()
+                    onSaveClick() // 상위에서 navController.popBackStack() 처리 등을 가정
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
             ) {
-                Text(text = "저장 및 완료", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(text = "저장", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -117,6 +128,14 @@ fun SettingItem(
 ) {
     // 내부 상태를 두어 입력 도중 값이 비거나 변경되는 것을 자연스럽게 처리
     var textState by remember(value) { mutableStateOf(value.toString()) }
+    var isFocused by remember { mutableStateOf(false) }
+
+    // 만약 외부에서 value가 바뀌었는데 포커스 중이 아니라면 textState 업데이트 (ex: 버튼으로 증감 시)
+    LaunchedEffect(value) {
+        if (!isFocused) {
+            textState = value.toString()
+        }
+    }
 
     Row(
         modifier = Modifier
@@ -135,9 +154,27 @@ fun SettingItem(
                 value = textState,
                 onValueChange = { 
                     textState = it
-                    onValueChange(it)
+                    // 입력 중에는 즉시 ViewModel에 반영 (유효성 검사는 ViewModel에서 처리됨)
+                    if (it.isNotEmpty()) {
+                        onValueChange(it)
+                    }
                 },
-                modifier = Modifier.width(70.dp),
+                modifier = Modifier
+                    .width(70.dp)
+                    .onFocusChanged { focusState ->
+                        if (focusState.isFocused && !isFocused) {
+                            // 포커스 얻었을 때 -> 입력 편의를 위해 전체 선택 혹은 비우기
+                            // 요청사항: "초기화된 공란에 입력되는 형태"
+                            textState = ""
+                        } else if (!focusState.isFocused && isFocused) {
+                            // 포커스 잃었을 때 -> 비어있으면 원복
+                            if (textState.isEmpty()) {
+                                textState = value.toString()
+                                onValueChange(value.toString())
+                            }
+                        }
+                        isFocused = focusState.isFocused
+                    },
                 textStyle = MaterialTheme.typography.bodyLarge.copy(
                     fontWeight = FontWeight.Bold,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -162,6 +199,81 @@ fun SettingItem(
             IconButton(onClick = onIncrease) {
                 Icon(Icons.Default.Add, contentDescription = null)
             }
+        }
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+}
+
+@Composable
+fun VibrationSettingItem(
+    enabled: Boolean,
+    intensity: Float,
+    onEnabledChange: (Boolean) -> Unit,
+    onIntensityChange: (Float) -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val vibrator = remember {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            val vm = context.getSystemService(android.content.Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+            vm.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as android.os.Vibrator
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = "진동 알림", style = MaterialTheme.typography.bodyLarge)
+            Switch(
+                checked = enabled,
+                onCheckedChange = onEnabledChange,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = MaterialTheme.colorScheme.primary,
+                    checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "진동 세기", 
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else Color.Gray,
+                modifier = Modifier.width(80.dp)
+            )
+            
+            Slider(
+                value = intensity,
+                onValueChange = onIntensityChange,
+                enabled = enabled,
+                modifier = Modifier.weight(1f),
+                onValueChangeFinished = {
+                    // 슬라이더 조절이 끝날 때 진동 피드백 제공
+                    if (enabled) {
+                        val amplitude = ((intensity * 254).toInt() + 1).coerceAtMost(255)
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                            vibrator.vibrate(android.os.VibrationEffect.createOneShot(200, amplitude))
+                        } else {
+                            @Suppress("DEPRECATION")
+                            vibrator.vibrate(200)
+                        }
+                    }
+                }
+            )
         }
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)

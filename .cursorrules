@@ -5,6 +5,8 @@
 
 - Code Comments: Use Korean for code comments where necessary to enhance the developer's understanding of the logic.
 
+- Documentation & Planning: All implementation plans, step-by-step guides, and technical strategies must be written in Korean (한글) to ensure clear communication of the development process.
+
 - Terminology: Technical terms, variable names, and class names must strictly follow standard English programming terminology.
 
 ## 2. Tech Stack & Environment
@@ -47,6 +49,12 @@
 - User Feedback: Provide clear Korean messages (via Snackbar, Toast, etc.) to the user in case of network errors or exceptions.
 
 - Result Wrapper: Wrap API results in Result<T> or a custom UiState class to explicitly handle Loading, Success, and Failure states.
+
+- Deep Error Analysis & Structural Integrity:
+  - Root Cause Analysis (RCA): When an error occurs, do not just apply a quick fix. Analyze Logcat or stack traces to identify the root cause (e.g., architectural flaws, data flow inconsistencies) and explain it in Korean.
+  - Impact Assessment: Before any code change, evaluate if it violates Clean Architecture or Multi-module dependency flow. Assess potential side effects on other screens or business logic.
+  - Regression Prevention: Ensure fixes do not break existing features. Re-verify related data flows and suggest updates to Unit or UI tests if necessary.
+  - Consistency Check: Ensure the fix aligns with existing patterns (e.g., StateFlow management, Result wrapper usage) to maintain codebase consistency
 
 ## 7. Interaction & Command Execution (STRICT)
 - Pre-Execution Explanation: Before suggesting or executing any terminal command (e.g., ./gradlew assembleDebug), you MUST provide a detailed explanation in Korean regarding what the command does and why it is necessary.

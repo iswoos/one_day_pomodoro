@@ -5,6 +5,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -29,51 +30,43 @@ import com.studio.one_day_pomodoro.domain.model.PomodoroPurpose
 @Composable
 fun TimerScreen(
     purpose: PomodoroPurpose,
-    onBreakStart: (focusMinutes: Int, completedSessions: Int, totalSessions: Int) -> Unit,
-    onSummaryClick: (PomodoroPurpose, Int) -> Unit,
     onStopClick: () -> Unit,
     viewModel: TimerViewModel = hiltViewModel()
 ) {
-    val remainingTime by viewModel.remainingTimeSeconds.collectAsState()
-    val isRunning by viewModel.isTimerRunning.collectAsState()
-    val context = LocalContext.current
-
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        // 권한 결과 처리
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val activity = androidx.compose.runtime.remember(context) { 
+        context.let { 
+            var c = it
+            while (c is android.content.ContextWrapper) {
+                if (c is android.app.Activity) break
+                c = c.baseContext
+            }
+            c as? android.app.Activity
+        }
     }
 
     LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
+        activity?.let { com.studio.one_day_pomodoro.presentation.ui.components.ads.InterstitialAdHelper.loadAd(it) }
+    }
+
+    val remainingTime by viewModel.remainingTimeSeconds.collectAsState()
+    val isRunning by viewModel.isTimerRunning.collectAsState()
+    val timerMode by viewModel.timerMode.collectAsState()
+    
+    // Handle system back button
+    BackHandler {
+        viewModel.stopTimer(createEvent = false)
+        onStopClick()
+    }
+
+
+    LaunchedEffect(Unit) {
+        // 권한 확인은 HomeScreen에서 이미 완료됨
         viewModel.startTimer(purpose)
     }
 
-    LaunchedEffect(Unit) {
-        viewModel.timerEvent.collect { event ->
-            when (event) {
-                is TimerViewModel.TimerEvent.GoToBreak -> {
-                    // repeatCount 값이 있는지 확인 필요. ViewModel의 settings 참조
-                    val settings = viewModel.settings.value
-                    val totalSessions = settings?.repeatCount ?: 4
-                    val remainingSessions = viewModel.remainingRepeatCount.value
-                    val completedSessions = if (totalSessions > 0) totalSessions - remainingSessions else 0
-                    onBreakStart(event.minutes, completedSessions, totalSessions)
-                }
-                is TimerViewModel.TimerEvent.Finished -> {
-                    onSummaryClick(event.purpose, event.minutes)
-                }
-            }
-        }
-    }
+
+
 
     Scaffold(
     ) { paddingValues ->
@@ -85,12 +78,8 @@ fun TimerScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // 세션 카운터
-            val settingsState = viewModel.settings.collectAsState()
-            val settings = settingsState.value
-            val totalSessions = settings?.repeatCount ?: 4
-            val remainingSessions by viewModel.remainingRepeatCount.collectAsState()
-            val completedSessions = if (totalSessions > 0) totalSessions - remainingSessions else 0
+            val totalSessions by viewModel.totalSessions.collectAsState()
+            val completedSessions by viewModel.completedSessions.collectAsState()
             
             Card(
                 colors = CardDefaults.cardColors(
@@ -109,7 +98,8 @@ fun TimerScreen(
             
             Spacer(modifier = Modifier.height(48.dp))
             
-            val totalTimeSeconds by viewModel.totalFocusTimeSeconds.collectAsState()
+            val focusDurationMin by viewModel.focusDurationMinutes.collectAsState()
+            val totalTimeSeconds = focusDurationMin * 60L
             val progress = if (totalTimeSeconds > 0) remainingTime.toFloat() / totalTimeSeconds else 0f
             
             Box(contentAlignment = Alignment.Center) {
