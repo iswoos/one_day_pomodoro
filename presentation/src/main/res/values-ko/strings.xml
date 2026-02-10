@@ -1,0 +1,78 @@
+<resources>
+    <string name="app_name">원데이 뽀모도로</string>
+    
+    <!-- Home Screen -->
+    <string name="home_today_focus">오늘의 집중</string>
+    <string name="home_goal_remaining">목표 달성까지</string>
+    <string name="home_sessions">세션</string>
+    <string name="home_total_focus_time">전체 집중 시간</string>
+    <string name="home_performance_by_category">분야별 성과</string>
+    <string name="home_hour">시간</string>
+    <string name="home_minute">분</string>
+    <string name="home_start_focus">집중 시작</string>
+    <string name="home_settings">설정</string>
+
+    <!-- Permission Dialog -->
+    <string name="permission_alarm_title">알림을 위한 권한 필요</string>
+    <string name="permission_alarm_message">정확한 시간에 타이머가 작동하도록\n\'알람 및 리마인더\' 권한이 필요합니다.\n\n설정 화면으로 이동하여 권한을 허용해주세요.</string>
+    <string name="common_go_to_settings">설정으로 이동</string>
+    <string name="common_cancel">취소</string>
+    <string name="common_back">뒤로가기</string>
+    <string name="common_unit_hour">시간</string>
+    <string name="common_unit_min">분</string>
+    <string name="common_unit_count">회</string>
+    
+    <!-- Purpose Selection -->
+    <string name="purpose_title">무엇에 집중하실 건가요?</string>
+    <string name="purpose_select">선택</string>
+    
+    <!-- Timer Screen -->
+    <string name="timer_completed_sessions">완료된 세션: %1$d / %2$d</string>
+    <string name="timer_pause">일시정지</string>
+    <string name="timer_resume">시작</string>
+    <string name="timer_stop">중단</string>
+    
+    <!-- Break Screen -->
+    <string name="break_title">훌륭해요! 이제 잠시 쉬어보세요.</string>
+    <string name="break_current_session">이번 세션 : %1$s 집중함</string>
+    <string name="break_remaining_time">남은 시간</string>
+    <string name="break_stop">집중 종료</string>
+    
+    <!-- Summary Screen -->
+    <string name="summary_title">오늘의 성과</string>
+    <string name="summary_success">집중 성공!</string>
+    <string name="summary_msg_purpose">오늘 %1$s 에</string>
+    <string name="summary_msg_total">총 %1$s 집중했어요!</string>
+    <string name="summary_confirm">확인</string>
+    <string name="common_done">완료</string>
+    
+    <!-- Settings Screen -->
+    <string name="settings_title">설정</string>
+    <string name="settings_focus_duration">집중 시간</string>
+    <string name="settings_break_duration">휴식 시간</string>
+    <string name="settings_repeat_count">시도 회수</string>
+    <string name="settings_vibration_alert">진동 알림</string>
+    <string name="settings_vibration_intensity">진동 세기</string>
+    <string name="settings_help_text">모든 설정값은 최소 1분/1회 이상이어야 합니다.\n시도 회수는 총 집중 세션의 수를 의미합니다.</string>
+    <string name="settings_save">저장</string>
+    <string name="settings_unit_min">분</string>
+    <string name="settings_unit_count">회</string>
+    
+    <!-- Pomodoro Purpose -->
+    <string name="purpose_study">공부</string>
+    <string name="purpose_read">독서</string>
+    <string name="purpose_work">업무</string>
+    <string name="purpose_health">운동</string>
+    <string name="purpose_others">기타</string>
+    
+    <!-- Notifications & Service -->
+    <string name="notification_channel_name">뽀모 타이머</string>
+    <string name="notification_channel_desc">타이머 실행 중 알림</string>
+    <string name="notification_title_focus">집중 중입니다</string>
+    <string name="notification_title_break">휴식 시간입니다</string>
+    <string name="notification_title_default">타이머 실행 중</string>
+    <string name="notification_completed_sessions">(완료된 세션: %1$d/%2$d)</string>
+    <string name="notification_action_open">앱 열기</string>
+    <string name="notification_title_finished">집중 완료!</string>
+    <string name="notification_content_finished">모든 세션이 완료되었습니다.</string>
+</resources>

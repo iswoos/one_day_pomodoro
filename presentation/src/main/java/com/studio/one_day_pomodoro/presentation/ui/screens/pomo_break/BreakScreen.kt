@@ -14,10 +14,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.ui.res.stringResource
+import com.studio.one_day_pomodoro.presentation.R
+import com.studio.one_day_pomodoro.presentation.util.formatDuration
 
 @Composable
 fun BreakScreen(
@@ -77,7 +79,7 @@ fun BreakScreen(
                 shape = RoundedCornerShape(24.dp)
             ) {
                 Text(
-                    text = "완료된 세션: $currentCompletedSessions / $currentTotalSessions",
+                    text = stringResource(R.string.timer_completed_sessions, currentCompletedSessions, currentTotalSessions),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onErrorContainer,
@@ -88,7 +90,7 @@ fun BreakScreen(
             Spacer(modifier = Modifier.height(24.dp))
             
             Text(
-                text = "훌륭해요! 이제 잠시 쉬어보세요.",
+                text = stringResource(R.string.break_title),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
@@ -97,7 +99,7 @@ fun BreakScreen(
             Spacer(modifier = Modifier.height(12.dp))
             
             Text(
-                text = "이번 세션: ${focusMinutes}분 완료", 
+                text = stringResource(R.string.break_current_session, formatDuration(focusMinutes)), 
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.onSurface
@@ -127,7 +129,7 @@ fun BreakScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "남은 시간",
+                        text = stringResource(R.string.break_remaining_time),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
@@ -152,7 +154,7 @@ fun BreakScreen(
                 )
             ) {
                 Text(
-                    text = "집중 종료",
+                    text = stringResource(R.string.break_stop),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp

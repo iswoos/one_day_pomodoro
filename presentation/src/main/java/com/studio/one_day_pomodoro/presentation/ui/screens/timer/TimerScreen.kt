@@ -27,6 +27,10 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.studio.one_day_pomodoro.domain.model.PomodoroPurpose
 
+import androidx.compose.ui.res.stringResource
+import com.studio.one_day_pomodoro.presentation.R
+import com.studio.one_day_pomodoro.presentation.util.getDisplayName
+
 @Composable
 fun TimerScreen(
     purpose: PomodoroPurpose,
@@ -88,7 +92,7 @@ fun TimerScreen(
                 shape = RoundedCornerShape(24.dp)
             ) {
                 Text(
-                    text = "완료된 세션: $completedSessions / $totalSessions",
+                    text = stringResource(R.string.timer_completed_sessions, completedSessions, totalSessions),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onErrorContainer,
@@ -124,7 +128,7 @@ fun TimerScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = purpose.displayName,
+                        text = purpose.getDisplayName(),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.error
@@ -156,7 +160,7 @@ fun TimerScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (isRunning) "일시정지" else "시작",
+                        text = if (isRunning) stringResource(R.string.timer_pause) else stringResource(R.string.timer_resume),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -172,7 +176,7 @@ fun TimerScreen(
                 ) {
                     Icon(
                         Icons.Default.Refresh,
-                        contentDescription = "중단",
+                        contentDescription = stringResource(R.string.timer_stop),
                         modifier = Modifier.size(32.dp),
                         tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )

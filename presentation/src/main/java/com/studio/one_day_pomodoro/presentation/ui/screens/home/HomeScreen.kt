@@ -32,6 +32,11 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+import androidx.compose.ui.res.stringResource
+import com.studio.one_day_pomodoro.presentation.R
+import com.studio.one_day_pomodoro.presentation.util.getDisplayName
+import com.studio.one_day_pomodoro.presentation.util.formatDuration
+
 @Composable
 fun HomeScreen(
     onStartClick: () -> Unit,
@@ -71,17 +76,17 @@ fun HomeScreen(
     if (showExactAlarmDialog) {
         AlertDialog(
             onDismissRequest = { showExactAlarmDialog = false },
-            title = { Text(text = "알림을 위한 권한 필요", fontWeight = FontWeight.Bold) },
-            text = { Text(text = "정확한 시간에 타이머가 작동하도록\n'알람 및 리마인더' 권한이 필요합니다.\n\n설정 화면으로 이동하여 권한을 허용해주세요.") },
+            title = { Text(text = stringResource(R.string.permission_alarm_title), fontWeight = FontWeight.Bold) },
+            text = { Text(text = stringResource(R.string.permission_alarm_message)) },
             confirmButton = {
                 Button(onClick = {
                     showExactAlarmDialog = false
                     val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
                     exactAlarmLauncher.launch(intent)
-                }) { Text("설정으로 이동") }
+                }) { Text(stringResource(R.string.common_go_to_settings)) }
             },
             dismissButton = {
-                TextButton(onClick = { showExactAlarmDialog = false }) { Text("취소") }
+                TextButton(onClick = { showExactAlarmDialog = false }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }
@@ -90,7 +95,7 @@ fun HomeScreen(
         topBar = {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
                 IconButton(onClick = onSettingsClick) {
-                    Icon(imageVector = Icons.Default.Settings, contentDescription = "Settings")
+                    Icon(imageVector = Icons.Default.Settings, contentDescription = stringResource(R.string.home_settings))
                 }
             }
         }
@@ -104,14 +109,17 @@ fun HomeScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "오늘의 집중",
+                text = stringResource(R.string.home_today_focus),
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.primary
             )
             
             Text(
-                text = currentDate.format(DateTimeFormatter.ofPattern("M월 d일 (E)", Locale.KOREAN)),
+                text = currentDate.format(DateTimeFormatter.ofPattern(
+                    if (Locale.getDefault().language == "ko") "M월 d일 (E)" else "EEE, MMM d, yyyy",
+                    Locale.getDefault()
+                )),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.outline
@@ -130,10 +138,10 @@ fun HomeScreen(
                         .padding(vertical = 24.dp, horizontal = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(text = "총 집중 시간", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+                    Text(text = stringResource(R.string.home_total_focus_time), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "${summary?.totalFocusMinutes ?: 0}분",
+                        text = formatDuration(summary?.totalFocusMinutes ?: 0),
                         style = MaterialTheme.typography.displayMedium,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.primary
@@ -150,12 +158,12 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Text(text = "집중 시작", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(text = stringResource(R.string.home_start_focus), fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
             
             Spacer(modifier = Modifier.height(32.dp))
             
-            Text(text = "분야별 성과", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(text = stringResource(R.string.home_performance_by_category), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
            
             Spacer(modifier = Modifier.height(16.dp))
             
@@ -188,10 +196,10 @@ fun PurposeSummaryItem(purpose: PomodoroPurpose, minutes: Int, count: Int) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = purpose.displayName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+            Text(text = purpose.getDisplayName(), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "${minutes}분", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                Text(text = "${count}회", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                Text(text = formatDuration(minutes), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Text(text = "${count}${stringResource(R.string.common_unit_count)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
             }
         }
     }
