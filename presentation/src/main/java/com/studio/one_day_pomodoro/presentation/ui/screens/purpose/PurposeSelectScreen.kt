@@ -17,6 +17,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import com.studio.one_day_pomodoro.domain.model.PomodoroPurpose
 
+import androidx.compose.ui.res.stringResource
+import com.studio.one_day_pomodoro.presentation.R
+import com.studio.one_day_pomodoro.presentation.util.getDisplayName
+
 @Composable
 fun PurposeSelectScreen(
     onPurposeSelected: (PomodoroPurpose) -> Unit,
@@ -32,7 +36,7 @@ fun PurposeSelectScreen(
                 IconButton(onClick = onBackClick) {
                     Icon(
                         imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "뒤로가기"
+                        contentDescription = stringResource(R.string.common_back)
                     )
                 }
             }
@@ -45,7 +49,7 @@ fun PurposeSelectScreen(
                 .padding(24.dp)
         ) {
             Text(
-                text = "어떤 일에 집중하시겠어요?",
+                text = stringResource(R.string.purpose_title),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.primary,
@@ -87,7 +91,7 @@ fun PurposeCard(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = purpose.displayName,
+                text = purpose.getDisplayName(),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )

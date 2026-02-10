@@ -1,0 +1,78 @@
+<resources>
+    <string name="app_name">One Day Pomodoro</string>
+    
+    <!-- Home Screen -->
+    <string name="home_today_focus">Today\'s Focus</string>
+    <string name="home_goal_remaining">To reach target</string>
+    <string name="home_sessions">sessions</string>
+    <string name="home_total_focus_time">Total Focus Time</string>
+    <string name="home_performance_by_category">Performance by Category</string>
+    <string name="home_hour">h</string>
+    <string name="home_minute">m</string>
+    <string name="home_start_focus">Start Focus</string>
+    <string name="home_settings">Settings</string>
+    
+    <!-- Permission Dialog -->
+    <string name="permission_alarm_title">Permission Required</string>
+    <string name="permission_alarm_message">To ensure the timer works at the exact time, \'Alarms &amp; Reminders\' permission is required.\nPlease allow the permission in the settings screen.</string>
+    <string name="common_go_to_settings">Go to Settings</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_back">Back</string>
+    <string name="common_unit_hour">h</string>
+    <string name="common_unit_min">m</string>
+    <string name="common_unit_count">times</string>
+    
+    <!-- Purpose Selection -->
+    <string name="purpose_title">What will you focus on?</string>
+    <string name="purpose_select">Select</string>
+    
+    <!-- Timer Screen -->
+    <string name="timer_completed_sessions">Completed Sessions: %1$d / %2$d</string>
+    <string name="timer_pause">Pause</string>
+    <string name="timer_resume">Resume</string>
+    <string name="timer_stop">Stop</string>
+    
+    <!-- Break Screen -->
+    <string name="break_title">Great job! Take a break.</string>
+    <string name="break_current_session">Current Session: %1$s completed</string>
+    <string name="break_remaining_time">Remaining Time</string>
+    <string name="break_stop">Stop Session</string>
+    
+    <!-- Summary Screen -->
+    <string name="summary_title">Today\'s Achievement</string>
+    <string name="summary_success">Focus Success!</string>
+    <string name="summary_msg_purpose">Today on %1$s</string>
+    <string name="summary_msg_total">Focused for %1$s!</string>
+    <string name="summary_confirm">Confirm</string>
+    <string name="common_done">Done</string>
+    
+    <!-- Settings Screen -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_focus_duration">Focus Duration</string>
+    <string name="settings_break_duration">Break Duration</string>
+    <string name="settings_repeat_count">Repeat Count</string>
+    <string name="settings_vibration_alert">Vibration Alert</string>
+    <string name="settings_vibration_intensity">Vibration Intensity</string>
+    <string name="settings_help_text">All settings must be at least 1 min/session.\nRepeat count means the total number of focus sessions.</string>
+    <string name="settings_save">Save</string>
+    <string name="settings_unit_min">min</string>
+    <string name="settings_unit_count">times</string>
+    
+    <!-- Pomodoro Purpose -->
+    <string name="purpose_study">Study</string>
+    <string name="purpose_read">Read</string>
+    <string name="purpose_work">Work</string>
+    <string name="purpose_health">Exercise</string>
+    <string name="purpose_others">Others</string>
+    
+    <!-- Notifications & Service -->
+    <string name="notification_channel_name">Pomodoro Timer</string>
+    <string name="notification_channel_desc">Notifications for timer progress</string>
+    <string name="notification_title_focus">Focusing...</string>
+    <string name="notification_title_break">Break time!</string>
+    <string name="notification_title_default">Timer running</string>
+    <string name="notification_completed_sessions">(Completed: %1$d/%2$d)</string>
+    <string name="notification_action_open">Open App</string>
+    <string name="notification_title_finished">Focus Finished!</string>
+    <string name="notification_content_finished">All sessions are completed.</string>
+</resources>

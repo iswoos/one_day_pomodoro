@@ -13,15 +13,17 @@ import androidx.compose.ui.unit.sp
 
 
 
+import androidx.compose.ui.res.stringResource
+import com.studio.one_day_pomodoro.presentation.R
+import com.studio.one_day_pomodoro.presentation.util.getDisplayName
+import com.studio.one_day_pomodoro.presentation.util.formatDuration
+
 @Composable
 fun SummaryScreen(
     purpose: PomodoroPurpose,
     minutes: Int,
     onConfirmClick: () -> Unit
 ) {
-    val purposeDisplayName = purpose.displayName
-    val totalMinutes = minutes
-    
     Scaffold(
     ) { paddingValues ->
         Column(
@@ -33,12 +35,12 @@ fun SummaryScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "오늘 $purposeDisplayName 에",
+                text = stringResource(R.string.summary_msg_purpose, purpose.getDisplayName()),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Medium
             )
             Text(
-                text = "총 ${totalMinutes}분 집중했어요!",
+                text = stringResource(R.string.summary_msg_total, formatDuration(minutes)),
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.primary,
@@ -54,7 +56,7 @@ fun SummaryScreen(
                     .height(56.dp),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Text(text = "완료", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(text = stringResource(R.string.common_done), fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

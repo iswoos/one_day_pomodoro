@@ -10,7 +10,7 @@ import android.os.VibratorManager
 import android.os.VibrationEffect
 import androidx.core.app.NotificationCompat
 import com.studio.one_day_pomodoro.MainActivity
-import com.studio.one_day_pomodoro.R
+import com.studio.one_day_pomodoro.presentation.R
 import com.studio.one_day_pomodoro.domain.model.PomodoroPurpose
 import com.studio.one_day_pomodoro.domain.model.PomodoroSession
 import com.studio.one_day_pomodoro.domain.model.TimerMode
@@ -150,9 +150,9 @@ class TimerService : Service() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                channelId, "뽀모 타이머", NotificationManager.IMPORTANCE_LOW
+                channelId, getString(R.string.notification_channel_name), NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "타이머 실행 중 알림"
+                description = getString(R.string.notification_channel_desc)
                 setShowBadge(false)
             }
             notificationManager.createNotificationChannel(channel)
@@ -320,13 +320,13 @@ class TimerService : Service() {
              val vibrationPattern = VibrationPattern.FINAL_COMPLETE
              triggerVibration(vibrationPattern)
              
-             val contentText = "모든 세션이 완료되었습니다."
-             val titleText = "집중 완료!"
+             val contentText = getString(R.string.notification_content_finished)
+             val titleText = getString(R.string.notification_title_finished)
              
              val completeNotification = NotificationCompat.Builder(this, channelId)
                 .setContentTitle(titleText)
                 .setContentText(contentText)
-                .setSmallIcon(R.mipmap.ic_launcher)
+                .setSmallIcon(com.studio.one_day_pomodoro.R.mipmap.ic_launcher)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setAutoCancel(true)
                 .setContentIntent(PendingIntent.getActivity(
@@ -353,25 +353,25 @@ class TimerService : Service() {
         val formattedTime = formatTime(seconds)
         val completed = timerRepository.completedSessions.value
         val total = timerRepository.totalSessions.value
-        val contentText = "$formattedTime  (완료된 세션: $completed/$total)"
+        val contentText = "$formattedTime  ${getString(R.string.notification_completed_sessions, completed, total)}"
         
         val title = when (timerRepository.timerMode.value) {
-            TimerMode.FOCUS -> "집중 중입니다"
-            TimerMode.BREAK -> "휴식 시간입니다"
-            else -> "타이머 실행 중"
+            TimerMode.FOCUS -> getString(R.string.notification_title_focus)
+            TimerMode.BREAK -> getString(R.string.notification_title_break)
+            else -> getString(R.string.notification_title_default)
         }
         
         return NotificationCompat.Builder(this, channelId)
             .setContentTitle(title)
             .setContentText(contentText)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(com.studio.one_day_pomodoro.R.mipmap.ic_launcher)
             .setContentIntent(pendingIntent)
             .setOnlyAlertOnce(true) 
             .setOngoing(true)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .addAction(
                 NotificationCompat.Action(
-                    0, "앱 열기", pendingIntent
+                    0, getString(R.string.notification_action_open), pendingIntent
                 )
             )
             .build()

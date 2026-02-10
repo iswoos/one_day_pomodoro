@@ -16,6 +16,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 
+import androidx.compose.ui.res.stringResource
+import com.studio.one_day_pomodoro.presentation.R
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -30,7 +33,7 @@ fun SettingsScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = "설정",
+                        text = stringResource(R.string.settings_title),
                         style = MaterialTheme.typography.headlineLarge,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.primary
@@ -40,7 +43,7 @@ fun SettingsScreen(
                     IconButton(onClick = onBackClick) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = stringResource(R.string.common_back)
                         )
                     }
                 }
@@ -57,25 +60,25 @@ fun SettingsScreen(
             
             settings?.let { s ->
                 SettingItem(
-                    label = "집중 시간", 
+                    label = stringResource(R.string.settings_focus_duration), 
                     value = s.focusMinutes,
-                    unit = "분",
+                    unit = stringResource(R.string.common_unit_min),
                     onValueChange = { viewModel.setFocusMinutes(it) },
                     onDecrease = { viewModel.updateFocusMinutes(-1) },
                     onIncrease = { viewModel.updateFocusMinutes(1) }
                 )
                 SettingItem(
-                    label = "휴식 시간", 
+                    label = stringResource(R.string.settings_break_duration), 
                     value = s.breakMinutes,
-                    unit = "분",
+                    unit = stringResource(R.string.common_unit_min),
                     onValueChange = { viewModel.setBreakMinutes(it) },
                     onDecrease = { viewModel.updateBreakMinutes(-1) },
                     onIncrease = { viewModel.updateBreakMinutes(1) }
                 )
                 SettingItem(
-                    label = "시도 회수", 
+                    label = stringResource(R.string.settings_repeat_count), 
                     value = s.repeatCount,
-                    unit = "회",
+                    unit = stringResource(R.string.common_unit_count),
                     onValueChange = { viewModel.setRepeatCount(it) },
                     onDecrease = { viewModel.updateRepeatCount(-1) },
                     onIncrease = { viewModel.updateRepeatCount(1) }
@@ -94,7 +97,7 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(16.dp))
             
             Text(
-                text = "모든 설정값은 최소 1분/1회 이상이어야 합니다.\n시도 회수는 총 집중 세션의 수를 의미합니다.",
+                text = stringResource(R.string.settings_help_text),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline
             )
@@ -111,7 +114,7 @@ fun SettingsScreen(
                     .height(56.dp),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
             ) {
-                Text(text = "저장", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(text = stringResource(R.string.settings_save), fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -232,7 +235,7 @@ fun VibrationSettingItem(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = "진동 알림", style = MaterialTheme.typography.bodyLarge)
+            Text(text = stringResource(R.string.settings_vibration_alert), style = MaterialTheme.typography.bodyLarge)
             Switch(
                 checked = enabled,
                 onCheckedChange = onEnabledChange,
@@ -250,10 +253,10 @@ fun VibrationSettingItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "진동 세기", 
+                text = stringResource(R.string.settings_vibration_intensity), 
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (enabled) MaterialTheme.colorScheme.onSurface else Color.Gray,
-                modifier = Modifier.width(80.dp)
+                modifier = Modifier.width(100.dp) // 영어 텍스트를 고려하여 너비 소폭 확장
             )
             
             Slider(
