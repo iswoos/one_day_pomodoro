@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">원데이 뽀모도로</string>
+    <string name="app_name">하루 뽀모도로</string>
     
     <!-- Home Screen -->
     <string name="home_today_focus">오늘의 집중</string>
@@ -37,7 +37,7 @@
     <string name="break_current_session">이번 세션 : %1$s 집중함</string>
     <string name="break_remaining_time">남은 시간</string>
     <string name="break_stop">집중 종료</string>
-    
+
     <!-- Summary Screen -->
     <string name="summary_title">오늘의 성과</string>
     <string name="summary_success">집중 성공!</string>
